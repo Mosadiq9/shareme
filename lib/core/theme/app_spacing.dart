@@ -43,6 +43,7 @@ abstract final class AppSpacing {
 
   /// Standard horizontal padding for all screens.
   static const double screenPadding = 20;
+  static const double screenMargin = 20;
 
   // --- Corner Radii ---
 

@@ -78,6 +78,15 @@ abstract final class AppTypography {
     height: 1.4,
   );
 
+  /// 18px bold — Prominent label.
+  static TextStyle labelLarge = bodyLarge.copyWith(fontWeight: FontWeight.w600);
+
+  /// 16px bold — Medium label.
+  static TextStyle labelMedium = bodyMedium.copyWith(fontWeight: FontWeight.w600);
+
+  /// 14px medium — Small label.
+  static TextStyle labelSmall = bodySmall.copyWith(fontWeight: FontWeight.w500);
+
   // ──────────────────────────────────────────────
   // Data / Mono — IBM Plex Mono (live readouts)
   // ──────────────────────────────────────────────
