@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>ShareMe uses local network discovery to find nearby devices for high-speed file transfer.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_shareme._tcp</string>
+	</array>
 </dict>
 </plist>

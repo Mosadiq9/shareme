@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../features/discovery/domain/peer_device.dart';
+import '../../features/discovery/presentation/providers/discovery_providers.dart';
 import '../../features/home/domain/history_item.dart';
 import '../../features/transfer/domain/transfer_item.dart';
 import '../../features/transfer/domain/transfer_session.dart';
@@ -154,49 +155,73 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
 
   @override
   DiscoveryState build() {
-    ref.onDispose(() => _scanTimer?.cancel());
-    return const DiscoveryState(isScanning: false, peers: []);
+    ref.onDispose(() {
+      _scanTimer?.cancel();
+      try {
+        ref.read(discoveryRepositoryProvider).stopDiscovery();
+      } on Object catch (_) {}
+    });
+
+    final nativePeersAsync = ref.watch(nearbyPeersStreamProvider);
+    final nativePeers = nativePeersAsync.value ?? [];
+    if (nativePeers.isNotEmpty) {
+      return DiscoveryState(isScanning: stateOrNull?.isScanning ?? false, peers: nativePeers);
+    }
+
+    return stateOrNull ?? const DiscoveryState(isScanning: false, peers: []);
   }
 
-  void startScanning() {
+  Future<void> startScanning() async {
     _scanTimer?.cancel();
     state = const DiscoveryState(isScanning: true, peers: []);
 
-    // Simulate 2 second sweep finding nearby peers
+    final deviceName = ref.read(mockDeviceNameProvider);
+    try {
+      await ref.read(discoveryRepositoryProvider).startDiscovery(deviceName: deviceName);
+    } on Object catch (_) {}
+
+    // Fallback timer: if no peers discovered via native after 2s, populate simulated peers for emulator QA
     _scanTimer = Timer(const Duration(seconds: 2), () {
-      state = const DiscoveryState(
-        isScanning: false,
-        peers: [
-          PeerDevice(
-            id: 'peer_1',
-            name: 'iPhone 15 Pro Max',
-            deviceModel: 'iOS 18.2 • Bonjour',
-            signalStrengthRssi: -45,
-            supportedBands: ['5GHz', '2.4GHz'],
-            is5GhzSupported: true,
-          ),
-          PeerDevice(
-            id: 'peer_2',
-            name: 'Galaxy S24 Ultra',
-            deviceModel: 'Android 15 • WiFi Direct',
-            signalStrengthRssi: -52,
-            supportedBands: ['5GHz', '6GHz'],
-            is5GhzSupported: true,
-          ),
-          PeerDevice(
-            id: 'peer_3',
-            name: 'Redmi Note 13',
-            deviceModel: 'Android 14 • WiFi Direct',
-            signalStrengthRssi: -68,
-            supportedBands: ['2.4GHz'],
-          ),
-        ],
-      );
+      if (state.peers.isEmpty) {
+        state = const DiscoveryState(
+          isScanning: false,
+          peers: [
+            PeerDevice(
+              id: 'peer_1',
+              name: 'iPhone 15 Pro Max',
+              deviceModel: 'iOS 18.2 • Bonjour',
+              signalStrengthRssi: -45,
+              supportedBands: ['5GHz', '2.4GHz'],
+              is5GhzSupported: true,
+            ),
+            PeerDevice(
+              id: 'peer_2',
+              name: 'Galaxy S24 Ultra',
+              deviceModel: 'Android 15 • WiFi Direct',
+              signalStrengthRssi: -52,
+              supportedBands: ['5GHz', '6GHz'],
+              is5GhzSupported: true,
+            ),
+            PeerDevice(
+              id: 'peer_3',
+              name: 'Redmi Note 13',
+              deviceModel: 'Android 14 • WiFi Direct',
+              signalStrengthRssi: -68,
+              supportedBands: ['2.4GHz'],
+            ),
+          ],
+        );
+      } else {
+        state = DiscoveryState(isScanning: false, peers: state.peers);
+      }
     });
   }
 
   void stopScanning() {
     _scanTimer?.cancel();
+    try {
+      ref.read(discoveryRepositoryProvider).stopDiscovery();
+    } on Object catch (_) {}
     state = DiscoveryState(isScanning: false, peers: state.peers);
   }
 }
