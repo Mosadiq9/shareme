@@ -12,6 +12,7 @@ import '../../features/discovery/domain/peer_device.dart';
 import '../../features/home/domain/history_item.dart';
 import '../../features/transfer/domain/transfer_item.dart';
 import '../../features/transfer/domain/transfer_session.dart';
+import '../data/local/local_storage_providers.dart';
 
 // ==========================================
 // 1. Mock Permissions Provider
@@ -34,11 +35,14 @@ final mockPermissionsProvider =
 
 class DeviceNameNotifier extends Notifier<String> {
   @override
-  String build() => 'Pixel 8 Pro (Mosadik)';
+  String build() {
+    final asyncVal = ref.watch(deviceDisplayNameProvider);
+    return asyncVal.value ?? 'ShareMe Device';
+  }
 
   void updateName(String newName) {
     if (newName.trim().isNotEmpty) {
-      state = newName.trim();
+      ref.read(settingsRepositoryProvider).updateDeviceName(newName.trim());
     }
   }
 }
@@ -47,40 +51,12 @@ final mockDeviceNameProvider =
     NotifierProvider<DeviceNameNotifier, String>(DeviceNameNotifier.new);
 
 // ==========================================
-// 3. Mock Transfer History Provider
+// 3. Mock Transfer History Provider (Bridged to SQLite)
 // ==========================================
 
 final mockHistoryProvider = Provider<List<HistoryItem>>((ref) {
-  final now = DateTime.now().millisecondsSinceEpoch;
-  return [
-    HistoryItem(
-      id: 'hist_1',
-      peerName: 'iPhone 15 Pro',
-      fileCount: 12,
-      totalSizeBytes: 342 * 1024 * 1024, // 342 MB
-      timestampEpochMs: now - (15 * 60 * 1000), // 15m ago
-      isSent: true,
-      isSuccess: true,
-    ),
-    HistoryItem(
-      id: 'hist_2',
-      peerName: 'Galaxy S24 Ultra',
-      fileCount: 1,
-      totalSizeBytes: 1850 * 1024 * 1024, // 1.85 GB (Video)
-      timestampEpochMs: now - (3 * 3600 * 1000), // 3h ago
-      isSent: false,
-      isSuccess: true,
-    ),
-    HistoryItem(
-      id: 'hist_3',
-      peerName: 'MacBook Air M3',
-      fileCount: 4,
-      totalSizeBytes: 45 * 1024 * 1024, // 45 MB
-      timestampEpochMs: now - (86400 * 1000), // Yesterday
-      isSent: true,
-      isSuccess: false,
-    ),
-  ];
+  final asyncVal = ref.watch(recentTransfersProvider);
+  return asyncVal.value ?? [];
 });
 
 // ==========================================
@@ -307,6 +283,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
           items: updatedItems,
           etaSeconds: 0,
         );
+        ref.read(historyRepositoryProvider).logTransferSession(state!);
       } else {
         state = state!.copyWith(
           transferredBytes: newTransferred,
@@ -325,6 +302,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
         status: TransferSessionStatus.failed,
         errorMessage: 'Connection lost on 5GHz High-Speed band. Peer disconnected.',
       );
+      ref.read(historyRepositoryProvider).logTransferSession(state!);
     }
   }
 
