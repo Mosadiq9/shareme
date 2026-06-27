@@ -1,7 +1,7 @@
 /// ShareMe — Permission Request Screen.
 ///
 /// App Flow §1, Screen #2: Request WiFi/Storage/Local Network access.
-/// Interactive cards allow simulated toggling of OS permissions.
+/// Interactive cards trigger real Android OS permission system dialogs.
 library;
 
 import 'package:flutter/material.dart';
@@ -52,7 +52,7 @@ class PermissionScreen extends ConsumerWidget {
                       title: 'Wi-Fi Direct & Local Network',
                       description: 'Required to create high-speed offline peer-to-peer tunnels.',
                       isGranted: isGranted,
-                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).grantAll(),
+                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).requestWifiAndLocation(),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _PermissionCard(
@@ -60,7 +60,7 @@ class PermissionScreen extends ConsumerWidget {
                       title: 'Storage Access',
                       description: 'Required to read files you select and save received files.',
                       isGranted: isGranted,
-                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).grantAll(),
+                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).requestStorage(),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _PermissionCard(
@@ -68,7 +68,7 @@ class PermissionScreen extends ConsumerWidget {
                       title: 'Nearby Devices (Location)',
                       description: 'Required by system OS to scan for Wi-Fi Direct hardware frequencies.',
                       isGranted: isGranted,
-                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).grantAll(),
+                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).requestWifiAndLocation(),
                     ),
                   ],
                 ),
@@ -81,9 +81,15 @@ class PermissionScreen extends ConsumerWidget {
                 child: AppButton(
                   label: isGranted ? 'Enter ShareMe' : 'Grant Permissions & Continue',
                   icon: isGranted ? Icons.check_circle_rounded : Icons.security_rounded,
-                  onPressed: () {
-                    ref.read(permissionsGrantedProvider.notifier).grantAll();
-                    context.goNamed(RouteNames.home);
+                  onPressed: () async {
+                    if (isGranted) {
+                      context.goNamed(RouteNames.home);
+                    } else {
+                      await ref.read(permissionsGrantedProvider.notifier).requestPermissions();
+                      if (context.mounted) {
+                        context.goNamed(RouteNames.home);
+                      }
+                    }
                   },
                 ),
               ),

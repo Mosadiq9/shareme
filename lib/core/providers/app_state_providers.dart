@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../features/discovery/domain/peer_device.dart';
@@ -25,9 +26,63 @@ import '../data/local/local_storage_providers.dart';
 
 class PermissionsNotifier extends Notifier<bool> {
   @override
-  bool build() => true;
+  bool build() {
+    unawaited(checkPermissions());
+    return false;
+  }
 
-  void grantAll() => state = true;
+  Future<void> checkPermissions() async {
+    final wifi = await Permission.nearbyWifiDevices.status;
+    final location = await Permission.location.status;
+    final storage = await Permission.storage.status;
+    final manage = await Permission.manageExternalStorage.status;
+
+    final isGranted = (wifi.isGranted || location.isGranted) && (storage.isGranted || manage.isGranted);
+    if (state != isGranted) {
+      state = isGranted;
+    }
+  }
+
+  Future<void> requestPermissions() async {
+    await [
+      Permission.nearbyWifiDevices,
+      Permission.location,
+      Permission.storage,
+      Permission.manageExternalStorage,
+      Permission.photos,
+      Permission.videos,
+      Permission.audio,
+    ].request();
+
+    await checkPermissions();
+    if (!state) {
+      final wifi = await Permission.nearbyWifiDevices.status;
+      final location = await Permission.location.status;
+      if (wifi.isGranted || location.isGranted) {
+        state = true;
+      }
+    }
+  }
+
+  Future<void> requestWifiAndLocation() async {
+    await [Permission.nearbyWifiDevices, Permission.location].request();
+    await checkPermissions();
+  }
+
+  Future<void> requestStorage() async {
+    await [
+      Permission.storage,
+      Permission.manageExternalStorage,
+      Permission.photos,
+      Permission.videos,
+      Permission.audio,
+    ].request();
+    await checkPermissions();
+  }
+
+  void grantAll() {
+    unawaited(requestPermissions());
+  }
 }
 
 final permissionsGrantedProvider =
