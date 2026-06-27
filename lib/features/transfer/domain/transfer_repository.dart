@@ -12,7 +12,7 @@ import 'package:shareme/features/transfer/domain/transfer_item.dart';
 
 abstract interface class TransferRepository {
   /// Live stream of byte progress, calculated transmission speed, and ETA.
-  Stream<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})> watchProgress();
+  Stream<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds, String? currentFileName})> watchProgress();
 
   /// Start TCP server and stream [items] to connecting peer.
   Future<Either<Failure, void>> sendFiles({

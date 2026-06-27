@@ -266,7 +266,8 @@ final peerDiscoveryProvider =
 // ==========================================
 
 class TransferNotifier extends Notifier<TransferSession?> {
-  StreamSubscription<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})>? _progressSub;
+  StreamSubscription<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds, String? currentFileName})>? _progressSub;
+  DateTime? _startTime;
 
   @override
   TransferSession? build() {
@@ -278,6 +279,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
 
   Future<void> startPairing(PeerDevice peer) async {
     debugPrint('🐞 [DEBUG MODE] startPairing initiated with target peer: ${peer.name} (ID/IP: ${peer.id})');
+    _startTime = DateTime.now();
     await _progressSub?.cancel();
 
     final items = ref.read(selectedFilesListProvider);
@@ -318,6 +320,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
 
   Future<void> startReceiving(PeerDevice peer) async {
     debugPrint('🐞 [DEBUG MODE] startReceiving initiated with sender: ${peer.name} (ID/IP: ${peer.id})');
+    _startTime = DateTime.now();
     await _progressSub?.cancel();
 
     const totalExpectedBytes = 100 * 1024 * 1024; // Baseline estimated size until negotiated
@@ -383,9 +386,28 @@ class TransferNotifier extends Notifier<TransferSession?> {
       final newTransferred = event.bytesTransferred;
       final speed = event.speedBytesPerSec > 0 ? event.speedBytesPerSec : 1.0;
       final etaSec = event.etaSeconds > 0 ? event.etaSeconds : 1;
+      final elapsed = _startTime != null ? DateTime.now().difference(_startTime!).inSeconds : 1;
+      final validElapsed = elapsed > 0 ? elapsed : 1;
+
+      var currentTotalBytes = state!.totalBytes;
+      var currentItems = state!.items;
+
+      if (!state!.isSent && event.currentFileName != null && event.totalBytes > 0) {
+        currentTotalBytes = event.totalBytes;
+        if (currentItems.length == 1 && currentItems.first.id == 'rx_1') {
+          currentItems = [
+            TransferItem(
+              id: event.currentFileName!,
+              name: event.currentFileName!,
+              sizeBytes: event.totalBytes,
+              mimeType: 'application/octet-stream',
+            )
+          ];
+        }
+      }
 
       var bytesLeftToDistribute = newTransferred;
-      final updatedItems = state!.items.map((item) {
+      final updatedItems = currentItems.map((item) {
         if (bytesLeftToDistribute >= item.sizeBytes) {
           bytesLeftToDistribute -= item.sizeBytes;
           return item.copyWith(progress: 1.0, status: TransferItemStatus.completed);
@@ -398,22 +420,28 @@ class TransferNotifier extends Notifier<TransferSession?> {
         }
       }).toList();
 
-      if (newTransferred >= state!.totalBytes && state!.totalBytes > 0) {
-        debugPrint('🐞 [DEBUG MODE] Transfer reached 100% completion ($newTransferred / ${state!.totalBytes} bytes). Logging success!');
+      if (newTransferred >= currentTotalBytes && currentTotalBytes > 0) {
+        debugPrint('🐞 [DEBUG MODE] Transfer reached 100% completion ($newTransferred / $currentTotalBytes bytes). Logging success!');
         _progressSub?.cancel();
         state = state!.copyWith(
           status: TransferSessionStatus.completed,
-          transferredBytes: state!.totalBytes,
+          transferredBytes: currentTotalBytes,
+          totalBytes: currentTotalBytes,
           items: updatedItems,
+          speedBytesPerSec: speed,
+          elapsedSeconds: validElapsed,
           etaSeconds: 0,
         );
         ref.read(historyRepositoryProvider).logTransferSession(state!);
+        ref.read(selectedFilesListProvider.notifier).clear();
       } else {
         state = state!.copyWith(
           status: TransferSessionStatus.transferring,
           transferredBytes: newTransferred,
+          totalBytes: currentTotalBytes,
           items: updatedItems,
           speedBytesPerSec: speed,
+          elapsedSeconds: validElapsed,
           etaSeconds: etaSec,
         );
       }
@@ -462,6 +490,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
       state = state!.copyWith(status: TransferSessionStatus.failed, errorMessage: 'Transfer cancelled by user.');
       ref.read(historyRepositoryProvider).logTransferSession(state!);
     }
+    ref.read(selectedFilesListProvider.notifier).clear();
     try {
       ref.read(transferRepositoryProvider).stopTransfer();
     } on Object catch (_) {}

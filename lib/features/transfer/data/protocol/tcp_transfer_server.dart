@@ -21,10 +21,10 @@ class TcpTransferServer {
   final BufferScalingStrategy _bufferStrategy;
   final Logger _logger;
   ServerSocket? _serverSocket;
-  final StreamController<({int bytesTransferred, int totalBytes})> _progressController =
+  final StreamController<({int bytesTransferred, int totalBytes, String? currentFileName})> _progressController =
       StreamController.broadcast();
 
-  Stream<({int bytesTransferred, int totalBytes})> get progressStream =>
+  Stream<({int bytesTransferred, int totalBytes, String? currentFileName})> get progressStream =>
       _progressController.stream;
 
   /// Start TCP server on [port] and stream [items] to the connecting peer.
@@ -80,6 +80,7 @@ class TcpTransferServer {
               _progressController.add((
                 bytesTransferred: cumulativeBytesSent,
                 totalBytes: totalJobBytes,
+                currentFileName: item.name,
               ));
             }
           }

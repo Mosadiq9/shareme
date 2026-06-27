@@ -102,7 +102,30 @@ class TransferCompleteScreen extends ConsumerWidget {
                   label: 'Open Received Folder',
                   icon: Icons.folder_open_rounded,
                   onPressed: () {
-                    AppToast.showSuccess(context, message: 'Opening system storage folder...');
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: AppColors.surfaceRaised,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: const Row(
+                          children: [
+                            Icon(Icons.folder_shared_rounded, color: AppColors.accentSignal),
+                            SizedBox(width: 12),
+                            Text('Received Files Location', style: TextStyle(color: Colors.white, fontSize: 18)),
+                          ],
+                        ),
+                        content: const Text(
+                          'Your shared files are permanently saved to your phone\'s internal storage at:\n\n📁 Internal Storage / Download / ShareMe\n\nYou can open your My Files app or Samsung Gallery to view them anytime!',
+                          style: TextStyle(color: AppColors.textMuted, height: 1.5, fontSize: 14),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('GOT IT', style: TextStyle(color: AppColors.accentSignal, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
                   },
                 ),
               ),

@@ -45,19 +45,19 @@ class LocalTransferRepository implements TransferRepository {
   final TransferAuthenticator _authenticator;
   final Logger _logger;
 
-  final StreamController<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})>
+  final StreamController<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds, String? currentFileName})>
       _progressController = StreamController.broadcast();
 
-  StreamSubscription<({int bytesTransferred, int totalBytes})>? _serverSub;
-  StreamSubscription<({int bytesTransferred, int totalBytes})>? _clientSub;
+  StreamSubscription<({int bytesTransferred, int totalBytes, String? currentFileName})>? _serverSub;
+  StreamSubscription<({int bytesTransferred, int totalBytes, String? currentFileName})>? _clientSub;
 
   @override
-  Stream<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})> watchProgress() {
+  Stream<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds, String? currentFileName})> watchProgress() {
     return _progressController.stream;
   }
 
-  StreamSubscription<({int bytesTransferred, int totalBytes})> _bindProgress(
-      Stream<({int bytesTransferred, int totalBytes})> rawStream) {
+  StreamSubscription<({int bytesTransferred, int totalBytes, String? currentFileName})> _bindProgress(
+      Stream<({int bytesTransferred, int totalBytes, String? currentFileName})> rawStream) {
     _speedMovingAverage.reset();
 
     return rawStream.listen((event) {
@@ -75,6 +75,7 @@ class LocalTransferRepository implements TransferRepository {
         totalBytes: event.totalBytes,
         speedBytesPerSec: speed > 0 ? speed : 0.0,
         etaSeconds: eta > 0 ? eta : 1,
+        currentFileName: event.currentFileName,
       ));
     });
   }

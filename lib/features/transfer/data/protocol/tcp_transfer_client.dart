@@ -22,10 +22,10 @@ class TcpTransferClient {
   final BufferScalingStrategy _bufferStrategy;
   final Logger _logger;
   Socket? _socket;
-  final StreamController<({int bytesTransferred, int totalBytes})> _progressController =
+  final StreamController<({int bytesTransferred, int totalBytes, String? currentFileName})> _progressController =
       StreamController.broadcast();
 
-  Stream<({int bytesTransferred, int totalBytes})> get progressStream =>
+  Stream<({int bytesTransferred, int totalBytes, String? currentFileName})> get progressStream =>
       _progressController.stream;
 
   /// Connect to sender at [hostIp]:[port] and receive incoming file stream.
@@ -54,7 +54,16 @@ class TcpTransferClient {
       }
       _logger.i('🐞 [DEBUG MODE] Connected to TCP sender at $hostIp:$port (buffer strategy: $bufferSize B)');
 
-      final downloadDir = await getTemporaryDirectory();
+      Directory downloadDir;
+      if (Platform.isAndroid) {
+        downloadDir = Directory('/storage/emulated/0/Download/ShareMe');
+      } else {
+        downloadDir = await getApplicationDocumentsDirectory();
+      }
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+      _logger.i('🐞 [DEBUG MODE] Saving incoming files to public directory: ${downloadDir.path}');
       var buffer = Uint8List(0);
 
       BinaryHeader? currentHeader;
@@ -108,6 +117,7 @@ class TcpTransferClient {
                 _progressController.add((
                   bytesTransferred: cumulativeBytesReceived,
                   totalBytes: header.fileSizeBytes, // Single/multi file tracking
+                  currentFileName: header.fileName,
                 ));
                 buffer = Uint8List(0);
               } else {
@@ -119,8 +129,11 @@ class TcpTransferClient {
               }
 
               if (currentFileBytesReceived >= header.fileSizeBytes) {
-                await sink.flush();
-                await sink.close();
+                try {
+                  await sink.flush();
+                  await sink.close();
+                } on Object catch (_) {}
+                currentSink = null;
 
                 // Verify checksum
                 final fileBytes = await file.readAsBytes();
@@ -166,7 +179,9 @@ class TcpTransferClient {
       _logger.e('🐞 [DEBUG MODE] Failed to receive files over TCP: $e', error: e, stackTrace: st);
       rethrow;
     } finally {
-      await currentSink?.close();
+      try {
+        await currentSink?.close();
+      } on Object catch (_) {}
       await _socket?.close();
       _socket = null;
     }
