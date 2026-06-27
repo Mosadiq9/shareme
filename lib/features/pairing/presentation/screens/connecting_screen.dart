@@ -91,7 +91,7 @@ class ConnectingScreen extends ConsumerWidget {
                     const Icon(Icons.speed_rounded, color: AppColors.accentSignal, size: 18),
                     const SizedBox(width: 10),
                     Text(
-                      'Negotiating 5GHz High-Speed Band...',
+                      'Establishing secure connection...',
                       style: AppTypography.labelSmall.copyWith(color: AppColors.accentSignal),
                     ),
                   ],

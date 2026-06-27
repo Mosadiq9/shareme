@@ -96,7 +96,7 @@ class RadarScreen extends ConsumerWidget {
                               child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accentPulse),
                             ),
                             const SizedBox(width: 8),
-                            Text('Scanning 5GHz band...', style: AppTypography.labelSmall),
+                            Text('Scanning nearby devices...', style: AppTypography.labelSmall),
                           ] else ...[
                             const Icon(Icons.check_circle_rounded, size: 14, color: AppColors.accentSignal),
                             const SizedBox(width: 6),

@@ -64,7 +64,7 @@ class TransferProgressScreen extends ConsumerWidget {
               children: [
                 const Icon(Icons.bolt_rounded, size: 14, color: AppColors.accentSignal),
                 const SizedBox(width: 4),
-                Text('Connected via 5GHz Tunnel', style: AppTypography.labelSmall.copyWith(color: AppColors.accentSignal)),
+                Text('Connected via Wi-Fi LAN', style: AppTypography.labelSmall.copyWith(color: AppColors.accentSignal)),
               ],
             ),
           ],
