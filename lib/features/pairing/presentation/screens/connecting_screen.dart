@@ -31,6 +31,7 @@ class ConnectingScreen extends ConsumerWidget {
     });
 
     final peerName = session?.peerDevice.name ?? 'Target Peer';
+    final isSent = session?.isSent ?? true;
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -68,7 +69,11 @@ class ConnectingScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 32),
 
-              Text('Connecting to $peerName...', style: AppTypography.displayMedium.copyWith(fontSize: 22)),
+              Text(
+                isSent ? 'Connecting to $peerName...' : 'Waiting for connection from $peerName...',
+                style: AppTypography.displayMedium.copyWith(fontSize: 22),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 8),
               Text('Securing socket & establishing handshake', style: AppTypography.bodyMedium.copyWith(color: AppColors.textMuted)),
               const SizedBox(height: 24),

@@ -271,8 +271,9 @@ class TransferNotifier extends Notifier<TransferSession?> {
       sessionId: const Uuid().v4(),
       peerDevice: peer,
       items: const [
-        TransferItem(id: 'rx_1', name: 'Incoming_Transfer_Payload.bin', sizeBytes: totalExpectedBytes, mimeType: 'application/octet-stream')
+        TransferItem(id: 'rx_1', name: 'Waiting for sender files...', sizeBytes: totalExpectedBytes, mimeType: 'application/octet-stream')
       ],
+      isSent: false,
       totalBytes: totalExpectedBytes,
     );
 
@@ -288,7 +289,30 @@ class TransferNotifier extends Notifier<TransferSession?> {
           ).then((result) {
             result.fold(
               (failure) => debugPrint('🐞 [DEBUG MODE] receiveFiles failed: ${failure.message}'),
-              (files) => debugPrint('🐞 [DEBUG MODE] receiveFiles succeeded! Received ${files.length} files.'),
+              (files) {
+                debugPrint('🐞 [DEBUG MODE] receiveFiles succeeded! Received ${files.length} files.');
+                if (state != null) {
+                  final receivedItems = files.map((f) {
+                    final name = f.uri.pathSegments.last;
+                    var size = 0;
+                    try { size = f.lengthSync(); } on Object catch (_) {}
+                    return TransferItem(
+                      id: name,
+                      name: name,
+                      sizeBytes: size,
+                      mimeType: 'application/octet-stream',
+                      progress: 1.0,
+                      status: TransferItemStatus.completed,
+                    );
+                  }).toList();
+                  final totalSize = receivedItems.fold<int>(0, (sum, i) => sum + i.sizeBytes);
+                  state = state!.copyWith(
+                    items: receivedItems.isNotEmpty ? receivedItems : state!.items,
+                    totalBytes: totalSize > 0 ? totalSize : state!.totalBytes,
+                    transferredBytes: totalSize > 0 ? totalSize : state!.transferredBytes,
+                  );
+                }
+              },
             );
           }));
     } on Object catch (e) {

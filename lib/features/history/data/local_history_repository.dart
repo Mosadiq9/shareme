@@ -51,7 +51,7 @@ class LocalHistoryRepository implements HistoryRepository {
         totalBytes: session.totalBytes,
         fileCount: session.items.length,
         timestampEpochMs: DateTime.now().millisecondsSinceEpoch,
-        isSent: true, // Default to sent for outgoing flow
+        isSent: session.isSent,
         status: session.status.name,
         durationSeconds: session.elapsedSeconds,
       );

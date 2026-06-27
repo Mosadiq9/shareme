@@ -54,7 +54,10 @@ class TransferProgressScreen extends ConsumerWidget {
         automaticallyImplyLeading: false,
         title: Column(
           children: [
-            Text('Sending to ${session.peerDevice.name}', style: AppTypography.labelLarge),
+            Text(
+              session.isSent ? 'Sending to ${session.peerDevice.name}' : 'Receiving from ${session.peerDevice.name}',
+              style: AppTypography.labelLarge,
+            ),
             const SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,

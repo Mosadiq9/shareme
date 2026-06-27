@@ -26,6 +26,9 @@ class TransferCompleteScreen extends ConsumerWidget {
     final totalBytes = session?.totalBytes ?? 0;
     final fileCount = session?.items.length ?? 0;
     final elapsed = session?.elapsedSeconds ?? 1;
+    final isSent = session?.isSent ?? true;
+    final speedBytesPerSec = elapsed > 0 ? totalBytes / elapsed : (session?.speedBytesPerSec ?? 0.0);
+    final speedMBs = (speedBytesPerSec / (1024 * 1024)).toStringAsFixed(1);
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -60,7 +63,7 @@ class TransferCompleteScreen extends ConsumerWidget {
               Text('Transfer Complete!', style: AppTypography.displayLarge),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                'Successfully sent to $peerName',
+                isSent ? 'Successfully sent to $peerName' : 'Successfully received from $peerName',
                 style: AppTypography.bodyMedium.copyWith(color: AppColors.textMuted),
               ),
               const SizedBox(height: AppSpacing.xxl),
@@ -79,9 +82,9 @@ class TransferCompleteScreen extends ConsumerWidget {
                     const Divider(height: 24),
                     _MetricRow(label: 'Total Data', value: formatFileSize(totalBytes)),
                     const Divider(height: 24),
-                    const _MetricRow(
+                    _MetricRow(
                       label: 'Average Speed',
-                      value: '45.2 MB/s',
+                      value: '$speedMBs MB/s',
                       isMono: true,
                       valueColor: AppColors.accentSignal,
                     ),

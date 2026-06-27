@@ -14,6 +14,7 @@ _$TransferSessionImpl _$$TransferSessionImplFromJson(
   items: (json['items'] as List<dynamic>)
       .map((e) => TransferItem.fromJson(e as Map<String, dynamic>))
       .toList(),
+  isSent: json['isSent'] as bool? ?? true,
   status:
       $enumDecodeNullable(_$TransferSessionStatusEnumMap, json['status']) ??
       TransferSessionStatus.connecting,
@@ -31,6 +32,7 @@ Map<String, dynamic> _$$TransferSessionImplToJson(
   'sessionId': instance.sessionId,
   'peerDevice': instance.peerDevice,
   'items': instance.items,
+  'isSent': instance.isSent,
   'status': _$TransferSessionStatusEnumMap[instance.status]!,
   'speedBytesPerSec': instance.speedBytesPerSec,
   'totalBytes': instance.totalBytes,

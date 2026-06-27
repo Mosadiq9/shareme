@@ -24,6 +24,7 @@ class TransferSession with _$TransferSession {
     required String sessionId,
     required PeerDevice peerDevice,
     required List<TransferItem> items,
+    @Default(true) bool isSent,
     @Default(TransferSessionStatus.connecting) TransferSessionStatus status,
     @Default(0.0) double speedBytesPerSec,
     @Default(0) int totalBytes,

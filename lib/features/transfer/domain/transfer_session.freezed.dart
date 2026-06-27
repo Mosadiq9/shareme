@@ -24,6 +24,7 @@ mixin _$TransferSession {
   String get sessionId => throw _privateConstructorUsedError;
   PeerDevice get peerDevice => throw _privateConstructorUsedError;
   List<TransferItem> get items => throw _privateConstructorUsedError;
+  bool get isSent => throw _privateConstructorUsedError;
   TransferSessionStatus get status => throw _privateConstructorUsedError;
   double get speedBytesPerSec => throw _privateConstructorUsedError;
   int get totalBytes => throw _privateConstructorUsedError;
@@ -53,6 +54,7 @@ abstract class $TransferSessionCopyWith<$Res> {
     String sessionId,
     PeerDevice peerDevice,
     List<TransferItem> items,
+    bool isSent,
     TransferSessionStatus status,
     double speedBytesPerSec,
     int totalBytes,
@@ -83,6 +85,7 @@ class _$TransferSessionCopyWithImpl<$Res, $Val extends TransferSession>
     Object? sessionId = null,
     Object? peerDevice = null,
     Object? items = null,
+    Object? isSent = null,
     Object? status = null,
     Object? speedBytesPerSec = null,
     Object? totalBytes = null,
@@ -105,6 +108,10 @@ class _$TransferSessionCopyWithImpl<$Res, $Val extends TransferSession>
                 ? _value.items
                 : items // ignore: cast_nullable_to_non_nullable
                       as List<TransferItem>,
+            isSent: null == isSent
+                ? _value.isSent
+                : isSent // ignore: cast_nullable_to_non_nullable
+                      as bool,
             status: null == status
                 ? _value.status
                 : status // ignore: cast_nullable_to_non_nullable
@@ -162,6 +169,7 @@ abstract class _$$TransferSessionImplCopyWith<$Res>
     String sessionId,
     PeerDevice peerDevice,
     List<TransferItem> items,
+    bool isSent,
     TransferSessionStatus status,
     double speedBytesPerSec,
     int totalBytes,
@@ -192,6 +200,7 @@ class __$$TransferSessionImplCopyWithImpl<$Res>
     Object? sessionId = null,
     Object? peerDevice = null,
     Object? items = null,
+    Object? isSent = null,
     Object? status = null,
     Object? speedBytesPerSec = null,
     Object? totalBytes = null,
@@ -214,6 +223,10 @@ class __$$TransferSessionImplCopyWithImpl<$Res>
             ? _value._items
             : items // ignore: cast_nullable_to_non_nullable
                   as List<TransferItem>,
+        isSent: null == isSent
+            ? _value.isSent
+            : isSent // ignore: cast_nullable_to_non_nullable
+                  as bool,
         status: null == status
             ? _value.status
             : status // ignore: cast_nullable_to_non_nullable
@@ -254,6 +267,7 @@ class _$TransferSessionImpl implements _TransferSession {
     required this.sessionId,
     required this.peerDevice,
     required final List<TransferItem> items,
+    this.isSent = true,
     this.status = TransferSessionStatus.connecting,
     this.speedBytesPerSec = 0.0,
     this.totalBytes = 0,
@@ -280,6 +294,9 @@ class _$TransferSessionImpl implements _TransferSession {
 
   @override
   @JsonKey()
+  final bool isSent;
+  @override
+  @JsonKey()
   final TransferSessionStatus status;
   @override
   @JsonKey()
@@ -301,7 +318,7 @@ class _$TransferSessionImpl implements _TransferSession {
 
   @override
   String toString() {
-    return 'TransferSession(sessionId: $sessionId, peerDevice: $peerDevice, items: $items, status: $status, speedBytesPerSec: $speedBytesPerSec, totalBytes: $totalBytes, transferredBytes: $transferredBytes, elapsedSeconds: $elapsedSeconds, etaSeconds: $etaSeconds, errorMessage: $errorMessage)';
+    return 'TransferSession(sessionId: $sessionId, peerDevice: $peerDevice, items: $items, isSent: $isSent, status: $status, speedBytesPerSec: $speedBytesPerSec, totalBytes: $totalBytes, transferredBytes: $transferredBytes, elapsedSeconds: $elapsedSeconds, etaSeconds: $etaSeconds, errorMessage: $errorMessage)';
   }
 
   @override
@@ -314,6 +331,7 @@ class _$TransferSessionImpl implements _TransferSession {
             (identical(other.peerDevice, peerDevice) ||
                 other.peerDevice == peerDevice) &&
             const DeepCollectionEquality().equals(other._items, _items) &&
+            (identical(other.isSent, isSent) || other.isSent == isSent) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.speedBytesPerSec, speedBytesPerSec) ||
                 other.speedBytesPerSec == speedBytesPerSec) &&
@@ -336,6 +354,7 @@ class _$TransferSessionImpl implements _TransferSession {
     sessionId,
     peerDevice,
     const DeepCollectionEquality().hash(_items),
+    isSent,
     status,
     speedBytesPerSec,
     totalBytes,
@@ -367,6 +386,7 @@ abstract class _TransferSession implements TransferSession {
     required final String sessionId,
     required final PeerDevice peerDevice,
     required final List<TransferItem> items,
+    final bool isSent,
     final TransferSessionStatus status,
     final double speedBytesPerSec,
     final int totalBytes,
@@ -385,6 +405,8 @@ abstract class _TransferSession implements TransferSession {
   PeerDevice get peerDevice;
   @override
   List<TransferItem> get items;
+  @override
+  bool get isSent;
   @override
   TransferSessionStatus get status;
   @override
