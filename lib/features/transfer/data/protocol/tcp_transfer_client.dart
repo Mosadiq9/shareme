@@ -39,7 +39,19 @@ class TcpTransferClient {
     IOSink? currentSink;
     try {
       final bufferSize = _bufferStrategy.getInitialBufferSize(band);
-      _socket = await Socket.connect(hostIp, port, timeout: const Duration(seconds: 5));
+      var attempts = 0;
+      const maxAttempts = 30;
+      while (_socket == null && attempts < maxAttempts) {
+        attempts++;
+        try {
+          _logger.i('🐞 [DEBUG MODE] Attempting TCP socket connect to $hostIp:$port (Attempt $attempts/$maxAttempts)...');
+          _socket = await Socket.connect(hostIp, port, timeout: const Duration(seconds: 3));
+        } on SocketException catch (e) {
+          if (attempts >= maxAttempts) rethrow;
+          _logger.w('🐞 [DEBUG MODE] Connection refused or timed out ($e). Sender server might still be initializing. Retrying in 1s...');
+          await Future<void>.delayed(const Duration(seconds: 1));
+        }
+      }
       _logger.i('🐞 [DEBUG MODE] Connected to TCP sender at $hostIp:$port (buffer strategy: $bufferSize B)');
 
       final downloadDir = await getTemporaryDirectory();
