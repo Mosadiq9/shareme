@@ -47,14 +47,17 @@ class TcpTransferServer {
         try {
           for (final item in items) {
             final file = File(item.filePath);
-            List<int> fileBytes;
-            try {
-              fileBytes = await file.readAsBytes();
-            } on Object catch (_) {
+            if (!await file.exists()) {
               _logger.w('🐞 [DEBUG MODE] File missing or unreadable during transfer: ${item.filePath}');
               continue;
             }
-            final digest = sha256.convert(fileBytes);
+            Digest digest;
+            try {
+              digest = await sha256.bind(file.openRead()).first;
+            } on Object catch (e) {
+              _logger.w('🐞 [DEBUG MODE] Error reading file for sha256: $e');
+              continue;
+            }
 
             final header = BinaryHeader(
               fileId: item.id,
