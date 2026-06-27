@@ -12,6 +12,7 @@ _$TransferItemImpl _$$TransferItemImplFromJson(Map<String, dynamic> json) =>
       name: json['name'] as String,
       sizeBytes: (json['sizeBytes'] as num).toInt(),
       mimeType: json['mimeType'] as String,
+      path: json['path'] as String?,
       progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
       status:
           $enumDecodeNullable(_$TransferItemStatusEnumMap, json['status']) ??
@@ -24,6 +25,7 @@ Map<String, dynamic> _$$TransferItemImplToJson(_$TransferItemImpl instance) =>
       'name': instance.name,
       'sizeBytes': instance.sizeBytes,
       'mimeType': instance.mimeType,
+      'path': instance.path,
       'progress': instance.progress,
       'status': _$TransferItemStatusEnumMap[instance.status]!,
     };

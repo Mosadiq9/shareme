@@ -25,6 +25,7 @@ mixin _$TransferItem {
   String get name => throw _privateConstructorUsedError;
   int get sizeBytes => throw _privateConstructorUsedError;
   String get mimeType => throw _privateConstructorUsedError;
+  String? get path => throw _privateConstructorUsedError;
   double get progress => throw _privateConstructorUsedError;
   TransferItemStatus get status => throw _privateConstructorUsedError;
 
@@ -50,6 +51,7 @@ abstract class $TransferItemCopyWith<$Res> {
     String name,
     int sizeBytes,
     String mimeType,
+    String? path,
     double progress,
     TransferItemStatus status,
   });
@@ -74,6 +76,7 @@ class _$TransferItemCopyWithImpl<$Res, $Val extends TransferItem>
     Object? name = null,
     Object? sizeBytes = null,
     Object? mimeType = null,
+    Object? path = freezed,
     Object? progress = null,
     Object? status = null,
   }) {
@@ -95,6 +98,10 @@ class _$TransferItemCopyWithImpl<$Res, $Val extends TransferItem>
                 ? _value.mimeType
                 : mimeType // ignore: cast_nullable_to_non_nullable
                       as String,
+            path: freezed == path
+                ? _value.path
+                : path // ignore: cast_nullable_to_non_nullable
+                      as String?,
             progress: null == progress
                 ? _value.progress
                 : progress // ignore: cast_nullable_to_non_nullable
@@ -123,6 +130,7 @@ abstract class _$$TransferItemImplCopyWith<$Res>
     String name,
     int sizeBytes,
     String mimeType,
+    String? path,
     double progress,
     TransferItemStatus status,
   });
@@ -146,6 +154,7 @@ class __$$TransferItemImplCopyWithImpl<$Res>
     Object? name = null,
     Object? sizeBytes = null,
     Object? mimeType = null,
+    Object? path = freezed,
     Object? progress = null,
     Object? status = null,
   }) {
@@ -167,6 +176,10 @@ class __$$TransferItemImplCopyWithImpl<$Res>
             ? _value.mimeType
             : mimeType // ignore: cast_nullable_to_non_nullable
                   as String,
+        path: freezed == path
+            ? _value.path
+            : path // ignore: cast_nullable_to_non_nullable
+                  as String?,
         progress: null == progress
             ? _value.progress
             : progress // ignore: cast_nullable_to_non_nullable
@@ -182,15 +195,16 @@ class __$$TransferItemImplCopyWithImpl<$Res>
 
 /// @nodoc
 @JsonSerializable()
-class _$TransferItemImpl implements _TransferItem {
+class _$TransferItemImpl extends _TransferItem {
   const _$TransferItemImpl({
     required this.id,
     required this.name,
     required this.sizeBytes,
     required this.mimeType,
+    this.path,
     this.progress = 0.0,
     this.status = TransferItemStatus.pending,
-  });
+  }) : super._();
 
   factory _$TransferItemImpl.fromJson(Map<String, dynamic> json) =>
       _$$TransferItemImplFromJson(json);
@@ -204,6 +218,8 @@ class _$TransferItemImpl implements _TransferItem {
   @override
   final String mimeType;
   @override
+  final String? path;
+  @override
   @JsonKey()
   final double progress;
   @override
@@ -212,7 +228,7 @@ class _$TransferItemImpl implements _TransferItem {
 
   @override
   String toString() {
-    return 'TransferItem(id: $id, name: $name, sizeBytes: $sizeBytes, mimeType: $mimeType, progress: $progress, status: $status)';
+    return 'TransferItem(id: $id, name: $name, sizeBytes: $sizeBytes, mimeType: $mimeType, path: $path, progress: $progress, status: $status)';
   }
 
   @override
@@ -226,6 +242,7 @@ class _$TransferItemImpl implements _TransferItem {
                 other.sizeBytes == sizeBytes) &&
             (identical(other.mimeType, mimeType) ||
                 other.mimeType == mimeType) &&
+            (identical(other.path, path) || other.path == path) &&
             (identical(other.progress, progress) ||
                 other.progress == progress) &&
             (identical(other.status, status) || other.status == status));
@@ -233,8 +250,16 @@ class _$TransferItemImpl implements _TransferItem {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, id, name, sizeBytes, mimeType, progress, status);
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    name,
+    sizeBytes,
+    mimeType,
+    path,
+    progress,
+    status,
+  );
 
   /// Create a copy of TransferItem
   /// with the given fields replaced by the non-null parameter values.
@@ -250,15 +275,17 @@ class _$TransferItemImpl implements _TransferItem {
   }
 }
 
-abstract class _TransferItem implements TransferItem {
+abstract class _TransferItem extends TransferItem {
   const factory _TransferItem({
     required final String id,
     required final String name,
     required final int sizeBytes,
     required final String mimeType,
+    final String? path,
     final double progress,
     final TransferItemStatus status,
   }) = _$TransferItemImpl;
+  const _TransferItem._() : super._();
 
   factory _TransferItem.fromJson(Map<String, dynamic> json) =
       _$TransferItemImpl.fromJson;
@@ -271,6 +298,8 @@ abstract class _TransferItem implements TransferItem {
   int get sizeBytes;
   @override
   String get mimeType;
+  @override
+  String? get path;
   @override
   double get progress;
   @override

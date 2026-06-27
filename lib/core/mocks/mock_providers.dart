@@ -14,6 +14,7 @@ import '../../features/home/domain/history_item.dart';
 import '../../features/pairing/presentation/providers/pairing_providers.dart';
 import '../../features/transfer/domain/transfer_item.dart';
 import '../../features/transfer/domain/transfer_session.dart';
+import '../../features/transfer/presentation/providers/transfer_providers.dart';
 import '../data/local/local_storage_providers.dart';
 
 // ==========================================
@@ -265,17 +266,24 @@ class TransferNotifier extends Notifier<TransferSession?> {
     } on Object catch (_) {}
 
     if (state != null && state!.status == TransferSessionStatus.connecting) {
-      _beginTransfer();
+      unawaited(_beginTransfer());
     }
   }
 
-  void _beginTransfer() {
+  Future<void> _beginTransfer() async {
     if (state == null) return;
 
     state = state!.copyWith(
       status: TransferSessionStatus.transferring,
       speedBytesPerSec: 45.2 * 1024 * 1024, // 45.2 MB/s
     );
+
+    try {
+      unawaited(ref.read(transferRepositoryProvider).sendFiles(
+            port: 8888,
+            items: state!.items,
+          ));
+    } on Object catch (_) {}
 
     const tickMs = 200;
     final bytesPerTick = (state!.speedBytesPerSec * (tickMs / 1000)).toInt();

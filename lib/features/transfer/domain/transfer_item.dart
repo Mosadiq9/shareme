@@ -17,10 +17,16 @@ class TransferItem with _$TransferItem {
     required String name,
     required int sizeBytes,
     required String mimeType,
+    String? path,
     @Default(0.0) double progress,
     @Default(TransferItemStatus.pending) TransferItemStatus status,
   }) = _TransferItem;
 
+  const TransferItem._();
+
   factory TransferItem.fromJson(Map<String, dynamic> json) =>
       _$TransferItemFromJson(json);
+
+  String get fileName => name;
+  String get filePath => path ?? name;
 }
