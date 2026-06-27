@@ -10,11 +10,16 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart';
 import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shareme/core/constants/enums.dart';
+import 'package:shareme/features/transfer/data/performance/buffer_scaling_strategy.dart';
 import 'package:shareme/features/transfer/data/protocol/binary_packet_codec.dart';
 
 class TcpTransferClient {
-  TcpTransferClient({Logger? logger}) : _logger = logger ?? Logger();
+  TcpTransferClient({BufferScalingStrategy? bufferStrategy, Logger? logger})
+      : _bufferStrategy = bufferStrategy ?? BufferScalingStrategy(),
+        _logger = logger ?? Logger();
 
+  final BufferScalingStrategy _bufferStrategy;
   final Logger _logger;
   Socket? _socket;
   final StreamController<({int bytesTransferred, int totalBytes})> _progressController =
@@ -28,12 +33,14 @@ class TcpTransferClient {
     required String hostIp,
     required int port,
     Map<String, int>? initialOffsets,
+    WifiBand band = WifiBand.ghz5,
   }) async {
     final downloadedFiles = <File>[];
     IOSink? currentSink;
     try {
+      final bufferSize = _bufferStrategy.getInitialBufferSize(band);
       _socket = await Socket.connect(hostIp, port, timeout: const Duration(seconds: 5));
-      _logger.i('Connected to TCP sender at $hostIp:$port');
+      _logger.i('Connected to TCP sender at $hostIp:$port (buffer strategy: $bufferSize B)');
 
       final downloadDir = await getTemporaryDirectory();
       var buffer = Uint8List(0);

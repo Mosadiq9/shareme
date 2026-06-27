@@ -8,12 +8,17 @@ import 'dart:async';
 import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:logger/logger.dart';
+import 'package:shareme/core/constants/enums.dart';
+import 'package:shareme/features/transfer/data/performance/buffer_scaling_strategy.dart';
 import 'package:shareme/features/transfer/data/protocol/binary_packet_codec.dart';
 import 'package:shareme/features/transfer/domain/transfer_item.dart';
 
 class TcpTransferServer {
-  TcpTransferServer({Logger? logger}) : _logger = logger ?? Logger();
+  TcpTransferServer({BufferScalingStrategy? bufferStrategy, Logger? logger})
+      : _bufferStrategy = bufferStrategy ?? BufferScalingStrategy(),
+        _logger = logger ?? Logger();
 
+  final BufferScalingStrategy _bufferStrategy;
   final Logger _logger;
   ServerSocket? _serverSocket;
   final StreamController<({int bytesTransferred, int totalBytes})> _progressController =
@@ -27,10 +32,12 @@ class TcpTransferServer {
     required int port,
     required List<TransferItem> items,
     Map<String, int>? startOffsets,
+    WifiBand band = WifiBand.ghz5,
   }) async {
     try {
+      final bufferSize = _bufferStrategy.getInitialBufferSize(band);
       _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, port);
-      _logger.i('TCP Transfer Server listening on port $port');
+      _logger.i('TCP Transfer Server listening on port $port (buffer: $bufferSize B)');
 
       final totalJobBytes = items.fold<int>(0, (sum, i) => sum + i.sizeBytes);
       var cumulativeBytesSent = 0;

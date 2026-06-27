@@ -8,7 +8,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:fpdart/fpdart.dart';
 import 'package:logger/logger.dart';
+import 'package:shareme/core/constants/enums.dart';
 import 'package:shareme/core/errors/failures.dart';
+import 'package:shareme/features/transfer/data/performance/speed_moving_average.dart';
 import 'package:shareme/features/transfer/data/protocol/tcp_transfer_client.dart';
 import 'package:shareme/features/transfer/data/protocol/tcp_transfer_server.dart';
 import 'package:shareme/features/transfer/data/recovery/storage_precheck.dart';
@@ -20,15 +22,18 @@ class LocalTransferRepository implements TransferRepository {
     TcpTransferServer? server,
     TcpTransferClient? client,
     StoragePrecheck? precheck,
+    SpeedMovingAverage? speedMovingAverage,
     Logger? logger,
   })  : _server = server ?? TcpTransferServer(),
         _client = client ?? TcpTransferClient(),
         _precheck = precheck ?? StoragePrecheck(),
+        _speedMovingAverage = speedMovingAverage ?? SpeedMovingAverage(),
         _logger = logger ?? Logger();
 
   final TcpTransferServer _server;
   final TcpTransferClient _client;
   final StoragePrecheck _precheck;
+  final SpeedMovingAverage _speedMovingAverage;
   final Logger _logger;
 
   final StreamController<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})>
@@ -37,35 +42,21 @@ class LocalTransferRepository implements TransferRepository {
   StreamSubscription<({int bytesTransferred, int totalBytes})>? _serverSub;
   StreamSubscription<({int bytesTransferred, int totalBytes})>? _clientSub;
 
-  int _lastBytes = 0;
-  DateTime _lastTime = DateTime.now();
-
   @override
   Stream<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})> watchProgress() {
     return _progressController.stream;
   }
 
   void _bindProgress(Stream<({int bytesTransferred, int totalBytes})> rawStream) {
-    _lastBytes = 0;
-    _lastTime = DateTime.now();
+    _speedMovingAverage.reset();
 
     rawStream.listen((event) {
       final now = DateTime.now();
-      final durationMs = now.difference(_lastTime).inMilliseconds;
+      _speedMovingAverage.addSample(bytesTransferred: event.bytesTransferred, timestamp: now);
 
-      var speed = 0.0;
-      if (durationMs > 100) {
-        final deltaBytes = event.bytesTransferred - _lastBytes;
-        speed = deltaBytes / (durationMs / 1000.0);
-        _lastBytes = event.bytesTransferred;
-        _lastTime = now;
-      }
-
-      var eta = 0;
-      if (speed > 0) {
-        final remainingBytes = event.totalBytes - event.bytesTransferred;
-        eta = (remainingBytes / speed).ceil();
-      }
+      final speed = _speedMovingAverage.currentSpeedBytesPerSec;
+      final remainingBytes = event.totalBytes - event.bytesTransferred;
+      final eta = _speedMovingAverage.calculateEtaSeconds(remainingBytes);
 
       _progressController.add((
         bytesTransferred: event.bytesTransferred,
@@ -81,6 +72,7 @@ class LocalTransferRepository implements TransferRepository {
     required int port,
     required List<TransferItem> items,
     Map<String, int>? startOffsets,
+    WifiBand band = WifiBand.ghz5,
   }) async {
     try {
       await _serverSub?.cancel();
@@ -92,7 +84,7 @@ class LocalTransferRepository implements TransferRepository {
           )));
       _bindProgress(_server.progressStream);
 
-      await _server.startServer(port: port, items: items, startOffsets: startOffsets);
+      await _server.startServer(port: port, items: items, startOffsets: startOffsets, band: band);
       return const Right(null);
     } on Object catch (e, st) {
       _logger.e('Send files error: $e', error: e, stackTrace: st);
@@ -106,6 +98,7 @@ class LocalTransferRepository implements TransferRepository {
     required int port,
     required int totalExpectedBytes,
     Map<String, int>? initialOffsets,
+    WifiBand band = WifiBand.ghz5,
   }) async {
     try {
       // 1. Pre-flight storage check
@@ -117,7 +110,7 @@ class LocalTransferRepository implements TransferRepository {
       await _clientSub?.cancel();
       _bindProgress(_client.progressStream);
 
-      final files = await _client.receiveFiles(hostIp: hostIp, port: port, initialOffsets: initialOffsets);
+      final files = await _client.receiveFiles(hostIp: hostIp, port: port, initialOffsets: initialOffsets, band: band);
       return Right(files);
     } on Object catch (e, st) {
       _logger.e('Receive files error: $e', error: e, stackTrace: st);

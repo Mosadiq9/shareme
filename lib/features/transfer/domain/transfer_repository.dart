@@ -6,6 +6,7 @@ library;
 
 import 'dart:io';
 import 'package:fpdart/fpdart.dart';
+import 'package:shareme/core/constants/enums.dart';
 import 'package:shareme/core/errors/failures.dart';
 import 'package:shareme/features/transfer/domain/transfer_item.dart';
 
@@ -18,6 +19,7 @@ abstract interface class TransferRepository {
     required int port,
     required List<TransferItem> items,
     Map<String, int>? startOffsets,
+    WifiBand band = WifiBand.ghz5,
   });
 
   /// Connect to sender at [hostIp]:[port] and download files to disk.
@@ -26,6 +28,7 @@ abstract interface class TransferRepository {
     required int port,
     required int totalExpectedBytes,
     Map<String, int>? initialOffsets,
+    WifiBand band = WifiBand.ghz5,
   });
 
   /// Stop active socket transmission.
