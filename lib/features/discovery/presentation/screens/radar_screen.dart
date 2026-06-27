@@ -7,7 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -21,7 +21,7 @@ class RadarScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final discovery = ref.watch(mockDiscoveryProvider);
+    final discovery = ref.watch(peerDiscoveryProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -31,9 +31,9 @@ class RadarScreen extends ConsumerWidget {
           IconButton(
             onPressed: () {
               if (discovery.isScanning) {
-                ref.read(mockDiscoveryProvider.notifier).stopScanning();
+                ref.read(peerDiscoveryProvider.notifier).stopScanning();
               } else {
-                ref.read(mockDiscoveryProvider.notifier).startScanning();
+                ref.read(peerDiscoveryProvider.notifier).startScanning();
               }
             },
             icon: Icon(
@@ -148,7 +148,7 @@ class RadarScreen extends ConsumerWidget {
                               Text('Make sure ShareMe is open on the other phone.', style: AppTypography.bodySmall),
                               const SizedBox(height: AppSpacing.lg),
                               TextButton.icon(
-                                onPressed: () => ref.read(mockDiscoveryProvider.notifier).startScanning(),
+                                onPressed: () => ref.read(peerDiscoveryProvider.notifier).startScanning(),
                                 icon: const Icon(Icons.refresh_rounded, color: AppColors.accentPulse),
                                 label: Text('Scan Again', style: AppTypography.labelMedium.copyWith(color: AppColors.accentPulse)),
                               ),
@@ -164,7 +164,7 @@ class RadarScreen extends ConsumerWidget {
                             return _PeerCard(
                               peer: peer,
                               onConnect: () {
-                                ref.read(mockTransferProvider.notifier).startPairing(peer);
+                                ref.read(activeTransferSessionProvider.notifier).startPairing(peer);
                                 context.pushNamed(RouteNames.connecting);
                               },
                             );

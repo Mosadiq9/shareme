@@ -6,7 +6,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -20,8 +20,8 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(mockHistoryProvider);
-    final deviceName = ref.watch(mockDeviceNameProvider);
+    final history = ref.watch(transferHistoryListProvider);
+    final deviceName = ref.watch(localDeviceNameProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -92,7 +92,7 @@ class HomeScreen extends ConsumerWidget {
                       color: AppColors.accentSignal,
                       onTap: () {
                         // Receiver enters radar waiting mode
-                        ref.read(mockDiscoveryProvider.notifier).startScanning();
+                        ref.read(peerDiscoveryProvider.notifier).startScanning();
                         context.pushNamed(RouteNames.radar);
                       },
                     ),

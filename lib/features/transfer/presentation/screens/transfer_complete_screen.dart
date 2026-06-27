@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -21,11 +21,11 @@ class TransferCompleteScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(mockTransferProvider);
+    final session = ref.watch(activeTransferSessionProvider);
     final peerName = session?.peerDevice.name ?? 'Peer Device';
-    final totalBytes = session?.totalBytes ?? 1250 * 1024 * 1024;
-    final fileCount = session?.items.length ?? 3;
-    final elapsed = session?.elapsedSeconds ?? 28;
+    final totalBytes = session?.totalBytes ?? 0;
+    final fileCount = session?.items.length ?? 0;
+    final elapsed = session?.elapsedSeconds ?? 1;
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -108,7 +108,7 @@ class TransferCompleteScreen extends ConsumerWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () {
-                    ref.read(mockTransferProvider.notifier).cancelTransfer();
+                    ref.read(activeTransferSessionProvider.notifier).cancelTransfer();
                     context.goNamed(RouteNames.home);
                   },
                   child: const Text('Back to Home'),

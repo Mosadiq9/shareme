@@ -9,7 +9,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -48,7 +48,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   void _checkAndNavigate() {
     if (!mounted) return;
-    final hasPermissions = ref.read(mockPermissionsProvider);
+    final hasPermissions = ref.read(permissionsGrantedProvider);
     if (hasPermissions) {
       context.goNamed(RouteNames.home);
     } else {

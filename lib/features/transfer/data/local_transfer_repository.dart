@@ -70,7 +70,7 @@ class LocalTransferRepository implements TransferRepository {
       _progressController.add((
         bytesTransferred: event.bytesTransferred,
         totalBytes: event.totalBytes,
-        speedBytesPerSec: speed > 0 ? speed : 45.2 * 1024 * 1024, // Fallback speed for instant mocks
+        speedBytesPerSec: speed > 0 ? speed : 0.0, // Baseline throughput before EMA warmup
         etaSeconds: eta > 0 ? eta : 1,
       ));
     });

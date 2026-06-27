@@ -5,7 +5,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -25,7 +25,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(
-      text: ref.read(mockDeviceNameProvider),
+      text: ref.read(localDeviceNameProvider),
     );
   }
 
@@ -38,7 +38,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void _saveName() {
     final newName = _nameController.text.trim();
     if (newName.isNotEmpty) {
-      ref.read(mockDeviceNameProvider.notifier).updateName(newName);
+      ref.read(localDeviceNameProvider.notifier).updateName(newName);
       AppToast.showSuccess(context, message: 'Device display name updated!');
     }
   }

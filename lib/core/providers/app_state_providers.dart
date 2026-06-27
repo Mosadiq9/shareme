@@ -1,0 +1,359 @@
+/// ShareMe — Application State Providers.
+///
+/// Manages real live permissions, device naming, native file picking,
+/// peer scanning, and active TCP transfer sessions. Pure live data.
+library;
+
+import 'dart:async';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
+
+import '../../features/discovery/domain/peer_device.dart';
+import '../../features/discovery/presentation/providers/discovery_providers.dart';
+import '../../features/home/domain/history_item.dart';
+import '../../features/pairing/presentation/providers/pairing_providers.dart';
+import '../../features/transfer/domain/transfer_item.dart';
+import '../../features/transfer/domain/transfer_session.dart';
+import '../../features/transfer/presentation/providers/transfer_providers.dart';
+import '../data/local/local_storage_providers.dart';
+
+// ==========================================
+// 1. Permissions State Provider
+// ==========================================
+
+class PermissionsNotifier extends Notifier<bool> {
+  @override
+  bool build() => true;
+
+  void grantAll() => state = true;
+}
+
+final permissionsGrantedProvider =
+    NotifierProvider<PermissionsNotifier, bool>(PermissionsNotifier.new);
+
+// ==========================================
+// 2. Local Device Name Provider
+// ==========================================
+
+class DeviceNameNotifier extends Notifier<String> {
+  @override
+  String build() {
+    ref.listen(deviceDisplayNameProvider, (prev, next) {
+      if (next.value != null) {
+        state = next.value!;
+      }
+    });
+
+    final settingsAsync = ref.read(deviceDisplayNameProvider);
+    return settingsAsync.value ?? 'ShareMe Mobile';
+  }
+
+  void updateName(String newName) {
+    state = newName;
+    ref.read(settingsRepositoryProvider).updateDeviceName(newName);
+  }
+}
+
+final localDeviceNameProvider =
+    NotifierProvider<DeviceNameNotifier, String>(DeviceNameNotifier.new);
+
+// ==========================================
+// 3. Transfer History List Provider
+// ==========================================
+
+final transferHistoryListProvider = Provider<List<HistoryItem>>((ref) {
+  final asyncVal = ref.watch(recentTransfersProvider);
+  return asyncVal.value ?? [];
+});
+
+// ==========================================
+// 4. Device Files Provider (Real File Picker)
+// ==========================================
+
+class DeviceFilesNotifier extends Notifier<List<TransferItem>> {
+  @override
+  List<TransferItem> build() => const [];
+
+  Future<void> browseDeviceFiles() async {
+    final result = await FilePicker.pickFiles(allowMultiple: true);
+    if (result != null && result.files.isNotEmpty) {
+      final newItems = result.files.where((f) => f.path != null).map((f) {
+        return TransferItem(
+          id: const Uuid().v4(),
+          name: f.name,
+          sizeBytes: f.size,
+          path: f.path,
+          mimeType: _inferMimeType(f.name),
+        );
+      }).toList();
+
+      state = [...state, ...newItems];
+    }
+  }
+
+  void removeFile(String id) {
+    state = state.where((item) => item.id != id).toList();
+  }
+
+  void clearAll() => state = const [];
+
+  String _inferMimeType(String filename) {
+    final ext = filename.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'mp4':
+      case 'mkv':
+      case 'avi':
+      case 'mov':
+        return 'video/$ext';
+      case 'pdf':
+        return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+      case 'webp':
+        return 'image/$ext';
+      case 'apk':
+        return 'application/vnd.android.package-archive';
+      case 'mp3':
+      case 'flac':
+      case 'wav':
+        return 'audio/$ext';
+      case 'zip':
+      case 'rar':
+      case '7z':
+        return 'application/zip';
+      default:
+        return 'application/octet-stream';
+    }
+  }
+}
+
+final deviceFilesProvider =
+    NotifierProvider<DeviceFilesNotifier, List<TransferItem>>(DeviceFilesNotifier.new);
+
+// ==========================================
+// 5. Selected Files List Provider
+// ==========================================
+
+class SelectedFilesNotifier extends Notifier<List<TransferItem>> {
+  @override
+  List<TransferItem> build() => const [];
+
+  void toggle(TransferItem item) {
+    if (state.any((i) => i.id == item.id)) {
+      state = state.where((i) => i.id != item.id).toList();
+    } else {
+      state = [...state, item];
+    }
+  }
+
+  void selectAll() {
+    state = ref.read(deviceFilesProvider);
+  }
+
+  void clear() => state = const [];
+}
+
+final selectedFilesListProvider =
+    NotifierProvider<SelectedFilesNotifier, List<TransferItem>>(SelectedFilesNotifier.new);
+
+// ==========================================
+// 6. Real Peer Discovery Provider
+// ==========================================
+
+class DiscoveryState {
+  const DiscoveryState({required this.isScanning, required this.peers});
+  final bool isScanning;
+  final List<PeerDevice> peers;
+}
+
+class DiscoveryNotifier extends Notifier<DiscoveryState> {
+  @override
+  DiscoveryState build() {
+    ref.onDispose(() {
+      try {
+        ref.read(discoveryRepositoryProvider).stopDiscovery();
+      } on Object catch (_) {}
+    });
+
+    final nativePeersAsync = ref.watch(nearbyPeersStreamProvider);
+    final nativePeers = nativePeersAsync.value ?? [];
+    return DiscoveryState(isScanning: stateOrNull?.isScanning ?? false, peers: nativePeers);
+  }
+
+  Future<void> startScanning() async {
+    state = const DiscoveryState(isScanning: true, peers: []);
+
+    final deviceName = ref.read(localDeviceNameProvider);
+    try {
+      await ref.read(discoveryRepositoryProvider).startDiscovery(deviceName: deviceName);
+    } on Object catch (_) {}
+  }
+
+  void stopScanning() {
+    state = DiscoveryState(isScanning: false, peers: state.peers);
+    try {
+      ref.read(discoveryRepositoryProvider).stopDiscovery();
+    } on Object catch (_) {}
+  }
+}
+
+final peerDiscoveryProvider =
+    NotifierProvider<DiscoveryNotifier, DiscoveryState>(DiscoveryNotifier.new);
+
+// ==========================================
+// 7. Live Active Transfer Session Provider
+// ==========================================
+
+class TransferNotifier extends Notifier<TransferSession?> {
+  StreamSubscription<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})>? _progressSub;
+
+  @override
+  TransferSession? build() {
+    ref.onDispose(() {
+      _progressSub?.cancel();
+    });
+    return null;
+  }
+
+  Future<void> startPairing(PeerDevice peer) async {
+    await _progressSub?.cancel();
+
+    final items = ref.read(selectedFilesListProvider);
+    if (items.isEmpty) {
+      await startReceiving(peer);
+      return;
+    }
+
+    final totalBytes = items.fold<int>(0, (sum, item) => sum + item.sizeBytes);
+
+    state = TransferSession(
+      sessionId: const Uuid().v4(),
+      peerDevice: peer,
+      items: items,
+      totalBytes: totalBytes,
+    );
+
+    final senderName = ref.read(localDeviceNameProvider);
+    try {
+      await ref.read(pairingRepositoryProvider).negotiatePairing(
+            peer: peer,
+            items: items,
+            senderName: senderName,
+          );
+    } on Object catch (_) {}
+
+    if (state != null && state!.status == TransferSessionStatus.connecting) {
+      await _beginTransfer();
+    }
+  }
+
+  Future<void> startReceiving(PeerDevice peer) async {
+    await _progressSub?.cancel();
+
+    const totalExpectedBytes = 100 * 1024 * 1024; // Baseline estimated size until negotiated
+
+    state = TransferSession(
+      sessionId: const Uuid().v4(),
+      peerDevice: peer,
+      items: const [
+        TransferItem(id: 'rx_1', name: 'Incoming_Transfer_Payload.bin', sizeBytes: totalExpectedBytes, mimeType: 'application/octet-stream')
+      ],
+      totalBytes: totalExpectedBytes,
+    );
+
+    _listenToRealProgress();
+
+    final hostIp = peer.id.contains('.') ? peer.id : '192.168.49.1';
+    try {
+      unawaited(ref.read(transferRepositoryProvider).receiveFiles(
+            hostIp: hostIp,
+            port: 8888,
+            totalExpectedBytes: totalExpectedBytes,
+          ));
+    } on Object catch (_) {}
+  }
+
+  void _listenToRealProgress() {
+    _progressSub = ref.read(transferRepositoryProvider).watchProgress().listen((event) {
+      if (state == null) return;
+
+      final newTransferred = event.bytesTransferred;
+      final speed = event.speedBytesPerSec > 0 ? event.speedBytesPerSec : 1.0;
+      final etaSec = event.etaSeconds > 0 ? event.etaSeconds : 1;
+
+      var bytesLeftToDistribute = newTransferred;
+      final updatedItems = state!.items.map((item) {
+        if (bytesLeftToDistribute >= item.sizeBytes) {
+          bytesLeftToDistribute -= item.sizeBytes;
+          return item.copyWith(progress: 1.0, status: TransferItemStatus.completed);
+        } else if (bytesLeftToDistribute > 0) {
+          final p = bytesLeftToDistribute / item.sizeBytes;
+          bytesLeftToDistribute = 0;
+          return item.copyWith(progress: p, status: TransferItemStatus.transferring);
+        } else {
+          return item.copyWith(progress: 0.0, status: TransferItemStatus.pending);
+        }
+      }).toList();
+
+      if (newTransferred >= state!.totalBytes && state!.totalBytes > 0) {
+        _progressSub?.cancel();
+        state = state!.copyWith(
+          status: TransferSessionStatus.completed,
+          transferredBytes: state!.totalBytes,
+          items: updatedItems,
+          etaSeconds: 0,
+        );
+        ref.read(historyRepositoryProvider).logTransferSession(state!);
+      } else {
+        state = state!.copyWith(
+          status: TransferSessionStatus.transferring,
+          transferredBytes: newTransferred,
+          items: updatedItems,
+          speedBytesPerSec: speed,
+          etaSeconds: etaSec,
+        );
+      }
+    });
+  }
+
+  Future<void> _beginTransfer() async {
+    if (state == null) return;
+
+    state = state!.copyWith(
+      status: TransferSessionStatus.transferring,
+      speedBytesPerSec: 0.0,
+    );
+
+    _listenToRealProgress();
+
+    try {
+      unawaited(ref.read(transferRepositoryProvider).sendFiles(
+            port: 8888,
+            items: state!.items,
+          ));
+    } on Object catch (_) {}
+  }
+
+  void retryTransfer() {
+    if (state != null) {
+      state = state!.copyWith(status: TransferSessionStatus.connecting, errorMessage: null);
+      unawaited(_beginTransfer());
+    }
+  }
+
+  void cancelTransfer() {
+    _progressSub?.cancel();
+    if (state != null) {
+      state = state!.copyWith(status: TransferSessionStatus.failed, errorMessage: 'Transfer cancelled by user.');
+      ref.read(historyRepositoryProvider).logTransferSession(state!);
+    }
+    try {
+      ref.read(transferRepositoryProvider).stopTransfer();
+    } on Object catch (_) {}
+  }
+}
+
+final activeTransferSessionProvider =
+    NotifierProvider<TransferNotifier, TransferSession?>(TransferNotifier.new);

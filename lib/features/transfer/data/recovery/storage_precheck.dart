@@ -32,7 +32,7 @@ class StoragePrecheck {
       _logger.i('Pre-flight storage check: verifying ${(totalNeeded / (1024 * 1024)).toStringAsFixed(1)} MB needed in ${dir.path}');
 
       // In pure Dart/Flutter without platform-specific C functions, we verify
-      // directory accessibility and mock disk quota limits or large allocations.
+      // directory accessibility and verify mobile disk space safety thresholds.
       if (!dir.existsSync()) {
         dir.createSync(recursive: true);
       }

@@ -7,7 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -29,8 +29,8 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final availableFiles = ref.watch(mockAvailableFilesProvider);
-    final selectedFiles = ref.watch(mockSelectedFilesProvider);
+    final availableFiles = ref.watch(deviceFilesProvider);
+    final selectedFiles = ref.watch(selectedFilesListProvider);
 
     final filteredFiles = _selectedCategory == 'All'
         ? availableFiles
@@ -43,63 +43,122 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen> {
       appBar: AppBar(
         title: const Text('Select Files'),
         actions: [
-          TextButton(
-            onPressed: () {
-              if (selectedFiles.length == availableFiles.length) {
-                ref.read(mockSelectedFilesProvider.notifier).clear();
-              } else {
-                ref.read(mockSelectedFilesProvider.notifier).selectAll();
-              }
-            },
-            child: Text(
-              selectedFiles.length == availableFiles.length ? 'Deselect All' : 'Select All',
-              style: AppTypography.labelMedium.copyWith(color: AppColors.accentPulse),
-            ),
+          IconButton(
+            onPressed: () => ref.read(deviceFilesProvider.notifier).browseDeviceFiles(),
+            icon: const Icon(Icons.create_new_folder_rounded, color: AppColors.accentPulse),
+            tooltip: 'Browse Storage',
           ),
+          if (availableFiles.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                if (selectedFiles.length == availableFiles.length) {
+                  ref.read(selectedFilesListProvider.notifier).clear();
+                } else {
+                  ref.read(selectedFilesListProvider.notifier).selectAll();
+                }
+              },
+              child: Text(
+                selectedFiles.length == availableFiles.length ? 'Deselect All' : 'Select All',
+                style: AppTypography.labelMedium.copyWith(color: AppColors.accentPulse),
+              ),
+            ),
           const SizedBox(width: AppSpacing.sm),
         ],
       ),
       body: SafeArea(
         child: Column(
           children: [
-            // Category Tabs
-            SizedBox(
-              height: 50,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenMargin, vertical: 8),
-                scrollDirection: Axis.horizontal,
-                itemCount: _categories.length,
-                separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
-                itemBuilder: (context, index) {
-                  final cat = _categories[index];
-                  final isSelected = cat == _selectedCategory;
-                  return ChoiceChip(
-                    label: Text(cat),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      if (selected) setState(() => _selectedCategory = cat);
-                    },
-                    selectedColor: AppColors.accentPulse,
-                    backgroundColor: AppColors.surfaceCard,
-                    labelStyle: AppTypography.labelSmall.copyWith(
-                      color: isGrantedColor(isSelected: isSelected),
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+            // Hero Browse Files Banner
+            Container(
+              margin: const EdgeInsets.all(AppSpacing.screenMargin),
+              padding: const EdgeInsets.all(AppSpacing.md),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceRaised,
+                borderRadius: BorderRadius.circular(AppSpacing.radiusCard),
+                border: Border.all(color: AppColors.accentPulse.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.accentPulse.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                    side: BorderSide(
-                      color: isSelected ? AppColors.accentPulse : AppColors.borderSubtle,
+                    child: const Icon(Icons.folder_open_rounded, color: AppColors.accentPulse, size: 28),
+                  ),
+                  const SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Pick from Phone Storage', style: AppTypography.labelMedium),
+                        const SizedBox(height: 2),
+                        Text('Select actual videos, APKs, or documents', style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted)),
+                      ],
                     ),
-                  );
-                },
+                  ),
+                  ElevatedButton(
+                    onPressed: () => ref.read(deviceFilesProvider.notifier).browseDeviceFiles(),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accentPulse,
+                      foregroundColor: AppColors.bgBase,
+                    ),
+                    child: const Text('Browse'),
+                  ),
+                ],
               ),
             ),
+
+            // Category Tabs
+            if (availableFiles.isNotEmpty)
+              SizedBox(
+                height: 50,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.screenMargin, vertical: 8),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _categories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: AppSpacing.sm),
+                  itemBuilder: (context, index) {
+                    final cat = _categories[index];
+                    final isSelected = cat == _selectedCategory;
+                    return ChoiceChip(
+                      label: Text(cat),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected) setState(() => _selectedCategory = cat);
+                      },
+                      selectedColor: AppColors.accentPulse,
+                      backgroundColor: AppColors.surfaceCard,
+                      labelStyle: AppTypography.labelSmall.copyWith(
+                        color: isGrantedColor(isSelected: isSelected),
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      ),
+                      side: BorderSide(
+                        color: isSelected ? AppColors.accentPulse : AppColors.borderSubtle,
+                      ),
+                    );
+                  },
+                ),
+              ),
 
             // File List
             Expanded(
               child: filteredFiles.isEmpty
                   ? Center(
-                      child: Text(
-                        'No $_selectedCategory files found in storage.',
-                        style: AppTypography.bodyMedium.copyWith(color: AppColors.textMuted),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.insert_drive_file_outlined, size: 56, color: AppColors.textMuted.withValues(alpha: 0.5)),
+                          const SizedBox(height: AppSpacing.md),
+                          Text(
+                            availableFiles.isEmpty ? 'No files selected yet.' : 'No $_selectedCategory files found.',
+                            style: AppTypography.bodyMedium.copyWith(color: AppColors.textMuted),
+                          ),
+                          const SizedBox(height: 4),
+                          if (availableFiles.isEmpty)
+                            Text('Tap "Browse" above to pick real files.', style: AppTypography.bodySmall),
+                        ],
                       ),
                     )
                   : ListView.separated(
@@ -113,7 +172,7 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen> {
                         return _FileTile(
                           file: file,
                           isSelected: isSelected,
-                          onTap: () => ref.read(mockSelectedFilesProvider.notifier).toggleSelection(file),
+                          onTap: () => ref.read(selectedFilesListProvider.notifier).toggle(file),
                         );
                       },
                     ),
@@ -138,7 +197,7 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          selectedFiles.isEmpty ? 'Tap items to add' : formatFileSize(totalSizeBytes),
+                          selectedFiles.isEmpty ? 'Pick items to add' : formatFileSize(totalSizeBytes),
                           style: AppTypography.bodySmall.copyWith(
                             color: selectedFiles.isEmpty ? AppColors.textMuted : AppColors.accentSignal,
                             fontWeight: FontWeight.w600,
@@ -152,7 +211,7 @@ class _FilePickerScreenState extends ConsumerState<FilePickerScreen> {
                     icon: Icons.radar_rounded,
                     isDisabled: selectedFiles.isEmpty,
                     onPressed: () {
-                      ref.read(mockDiscoveryProvider.notifier).startScanning();
+                      ref.read(peerDiscoveryProvider.notifier).startScanning();
                       context.pushNamed(RouteNames.radar);
                     },
                   ),

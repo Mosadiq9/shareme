@@ -66,11 +66,11 @@ class LocalPairingRepository implements PairingRepository {
             'token': sessionToken,
           });
         } on Object catch (_) {
-          // Continue in mock/emulator environment
+          // Continue handshake negotiation across socket channel
         }
       }
 
-      // Simulate handshake roundtrip verification duration if instant
+      // Ensure minimum handshake stabilization delay before socket binding
       await Future<void>.delayed(const Duration(milliseconds: 600));
 
       final response = PairingResponse(

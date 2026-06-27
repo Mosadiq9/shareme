@@ -7,7 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -19,7 +19,7 @@ class TransferFailedScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(mockTransferProvider);
+    final session = ref.watch(activeTransferSessionProvider);
     final errorMsg = session?.errorMessage ?? 'Connection dropped unexpectedly during high-speed transfer.';
 
     return Scaffold(
@@ -80,7 +80,7 @@ class TransferFailedScreen extends ConsumerWidget {
                   label: 'Retry Instant Connection',
                   icon: Icons.refresh_rounded,
                   onPressed: () {
-                    ref.read(mockTransferProvider.notifier).retryTransfer();
+                    ref.read(activeTransferSessionProvider.notifier).retryTransfer();
                     context.pushReplacementNamed(RouteNames.connecting);
                   },
                 ),
@@ -90,7 +90,7 @@ class TransferFailedScreen extends ConsumerWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () {
-                    ref.read(mockTransferProvider.notifier).cancelTransfer();
+                    ref.read(activeTransferSessionProvider.notifier).cancelTransfer();
                     context.goNamed(RouteNames.home);
                   },
                   child: const Text('Cancel & Return Home'),

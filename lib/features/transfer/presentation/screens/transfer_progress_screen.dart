@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -23,10 +23,10 @@ class TransferProgressScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(mockTransferProvider);
+    final session = ref.watch(activeTransferSessionProvider);
 
     // Listen for completion or failure
-    ref.listen<TransferSession?>(mockTransferProvider, (previous, next) {
+    ref.listen<TransferSession?>(activeTransferSessionProvider, (previous, next) {
       if (next?.status == TransferSessionStatus.completed) {
         context.pushReplacementNamed(RouteNames.transferComplete);
       } else if (next?.status == TransferSessionStatus.failed) {
@@ -151,28 +151,19 @@ class TransferProgressScreen extends ConsumerWidget {
             // Bottom Actions
             Padding(
               padding: const EdgeInsets.all(AppSpacing.screenMargin),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () {
-                        ref.read(mockTransferProvider.notifier).cancelTransfer();
-                        context.goNamed(RouteNames.home);
-                      },
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.accentError),
-                        foregroundColor: AppColors.accentError,
-                      ),
-                      child: const Text('Cancel Transfer'),
-                    ),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    ref.read(activeTransferSessionProvider.notifier).cancelTransfer();
+                    context.goNamed(RouteNames.home);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: AppColors.accentError),
+                    foregroundColor: AppColors.accentError,
                   ),
-                  const SizedBox(width: AppSpacing.md),
-                  IconButton(
-                    onPressed: () => ref.read(mockTransferProvider.notifier).simulateFailure(),
-                    icon: const Icon(Icons.warning_amber_rounded, color: AppColors.accentError),
-                    tooltip: 'Simulate Network Drop Failure',
-                  ),
-                ],
+                  child: const Text('Cancel Transfer'),
+                ),
               ),
             ),
           ],

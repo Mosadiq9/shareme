@@ -7,7 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shareme/core/mocks/mock_providers.dart';
+import 'package:shareme/core/providers/app_state_providers.dart';
 import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
@@ -19,7 +19,7 @@ class PermissionScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isGranted = ref.watch(mockPermissionsProvider);
+    final isGranted = ref.watch(permissionsGrantedProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bgBase,
@@ -52,7 +52,7 @@ class PermissionScreen extends ConsumerWidget {
                       title: 'Wi-Fi Direct & Local Network',
                       description: 'Required to create high-speed offline peer-to-peer tunnels.',
                       isGranted: isGranted,
-                      onToggle: () => ref.read(mockPermissionsProvider.notifier).grantAll(),
+                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).grantAll(),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _PermissionCard(
@@ -60,7 +60,7 @@ class PermissionScreen extends ConsumerWidget {
                       title: 'Storage Access',
                       description: 'Required to read files you select and save received files.',
                       isGranted: isGranted,
-                      onToggle: () => ref.read(mockPermissionsProvider.notifier).grantAll(),
+                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).grantAll(),
                     ),
                     const SizedBox(height: AppSpacing.md),
                     _PermissionCard(
@@ -68,7 +68,7 @@ class PermissionScreen extends ConsumerWidget {
                       title: 'Nearby Devices (Location)',
                       description: 'Required by system OS to scan for Wi-Fi Direct hardware frequencies.',
                       isGranted: isGranted,
-                      onToggle: () => ref.read(mockPermissionsProvider.notifier).grantAll(),
+                      onToggle: () => ref.read(permissionsGrantedProvider.notifier).grantAll(),
                     ),
                   ],
                 ),
@@ -82,25 +82,11 @@ class PermissionScreen extends ConsumerWidget {
                   label: isGranted ? 'Enter ShareMe' : 'Grant Permissions & Continue',
                   icon: isGranted ? Icons.check_circle_rounded : Icons.security_rounded,
                   onPressed: () {
-                    ref.read(mockPermissionsProvider.notifier).grantAll();
+                    ref.read(permissionsGrantedProvider.notifier).grantAll();
                     context.goNamed(RouteNames.home);
                   },
                 ),
               ),
-              if (isGranted) ...[
-                const SizedBox(height: AppSpacing.sm),
-                Center(
-                  child: TextButton(
-                    onPressed: () => ref.read(mockPermissionsProvider.notifier).revokeAll(),
-                    child: Text(
-                      'Simulate Revoke (Test Lockout)',
-                      style: AppTypography.labelSmall.copyWith(
-                        color: AppColors.accentError,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
