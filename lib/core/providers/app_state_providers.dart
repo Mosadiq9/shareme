@@ -178,8 +178,11 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
       } on Object catch (_) {}
     });
 
+    final myName = ref.watch(localDeviceNameProvider).trim().toLowerCase();
     final nativePeersAsync = ref.watch(nearbyPeersStreamProvider);
-    final nativePeers = nativePeersAsync.value ?? [];
+    final nativePeers = (nativePeersAsync.value ?? [])
+        .where((p) => p.name.trim().toLowerCase() != myName)
+        .toList();
     return DiscoveryState(isScanning: stateOrNull?.isScanning ?? false, peers: nativePeers);
   }
 

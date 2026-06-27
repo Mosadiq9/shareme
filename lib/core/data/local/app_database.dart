@@ -34,35 +34,10 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (Migrator m) async {
           await m.createAll();
-          await settingsDao.saveSetting('device_name', 'Pixel 8 Pro (Mosadik)');
-
-          final now = DateTime.now().millisecondsSinceEpoch;
-          await historyDao.insertTransferSession(
-            TransferRecord(
-              id: 'seed_1',
-              peerName: 'iPhone 15 Pro',
-              totalBytes: 342 * 1024 * 1024,
-              fileCount: 12,
-              timestampEpochMs: now - (15 * 60 * 1000),
-              isSent: true,
-              status: 'completed',
-              durationSeconds: 8,
-            ),
-            [],
-          );
-          await historyDao.insertTransferSession(
-            TransferRecord(
-              id: 'seed_2',
-              peerName: 'Galaxy S24 Ultra',
-              totalBytes: 1850 * 1024 * 1024,
-              fileCount: 1,
-              timestampEpochMs: now - (3 * 3600 * 1000),
-              isSent: false,
-              status: 'completed',
-              durationSeconds: 41,
-            ),
-            [],
-          );
+          await settingsDao.saveSetting('device_name', 'ShareMe Mobile');
+        },
+        beforeOpen: (details) async {
+          await (delete(transfers)..where((t) => t.id.isIn(['seed_1', 'seed_2']))).go();
         },
       );
 }

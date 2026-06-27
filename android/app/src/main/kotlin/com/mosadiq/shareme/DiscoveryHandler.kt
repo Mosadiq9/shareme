@@ -22,6 +22,7 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
     private val discoveredPeers = mutableMapOf<String, Map<String, Any>>()
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
+    private var myDeviceName: String = ""
 
     companion object {
         const val SERVICE_TYPE = "_shareme._tcp."
@@ -38,6 +39,7 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
 
     @SuppressLint("MissingPermission")
     fun startDiscovery(deviceName: String) {
+        myDeviceName = deviceName.trim()
         android.util.Log.i("ShareMeDiscovery", "Starting Total Debug Mode Discovery for device: $deviceName")
         discoveredPeers.clear()
 
@@ -111,6 +113,11 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                 android.util.Log.i("ShareMeDiscovery", "mDNS Service discovery started for regType: $regType")
             }
             override fun onServiceFound(service: NsdServiceInfo) {
+                val peerName = service.serviceName.replace("ShareMe_", "").trim()
+                if (peerName.equals(myDeviceName, ignoreCase = true) || service.serviceName.equals("ShareMe_$myDeviceName", ignoreCase = true)) {
+                    android.util.Log.i("ShareMeDiscovery", "Ignoring self mDNS broadcast: ${service.serviceName}")
+                    return
+                }
                 android.util.Log.i("ShareMeDiscovery", "mDNS Service found: ${service.serviceName} (${service.serviceType})")
                 if (service.serviceType.contains("_shareme")) {
                     nsdManager?.resolveService(service, object : NsdManager.ResolveListener {
@@ -118,11 +125,13 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                             android.util.Log.e("ShareMeDiscovery", "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
                         }
                         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                            val resolvedName = serviceInfo.serviceName.replace("ShareMe_", "").trim()
+                            if (resolvedName.equals(myDeviceName, ignoreCase = true)) return
                             val hostIp = serviceInfo.host?.hostAddress ?: serviceInfo.serviceName
                             android.util.Log.i("ShareMeDiscovery", "Resolved mDNS service ${serviceInfo.serviceName} at IP: $hostIp")
                             addOrUpdatePeer(
                                 id = hostIp,
-                                name = serviceInfo.serviceName.replace("ShareMe_", ""),
+                                name = resolvedName,
                                 model = "Android • mDNS LAN ($hostIp)",
                                 rssi = -50
                             )
