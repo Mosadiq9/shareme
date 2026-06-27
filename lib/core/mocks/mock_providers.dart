@@ -11,6 +11,7 @@ import 'package:uuid/uuid.dart';
 import '../../features/discovery/domain/peer_device.dart';
 import '../../features/discovery/presentation/providers/discovery_providers.dart';
 import '../../features/home/domain/history_item.dart';
+import '../../features/pairing/presentation/providers/pairing_providers.dart';
 import '../../features/transfer/domain/transfer_item.dart';
 import '../../features/transfer/domain/transfer_session.dart';
 import '../data/local/local_storage_providers.dart';
@@ -242,7 +243,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
     return null;
   }
 
-  void startPairing(PeerDevice peer) {
+  Future<void> startPairing(PeerDevice peer) async {
     _progressTimer?.cancel();
     final items = ref.read(mockSelectedFilesProvider);
     final totalBytes = items.fold<int>(0, (sum, item) => sum + item.sizeBytes);
@@ -254,12 +255,18 @@ class TransferNotifier extends Notifier<TransferSession?> {
       totalBytes: totalBytes,
     );
 
-    // Simulate 2 seconds of handshake / band negotiation
-    Timer(const Duration(milliseconds: 1800), () {
-      if (state != null && state!.status == TransferSessionStatus.connecting) {
-        _beginTransfer();
-      }
-    });
+    final senderName = ref.read(mockDeviceNameProvider);
+    try {
+      await ref.read(pairingRepositoryProvider).negotiatePairing(
+            peer: peer,
+            items: items,
+            senderName: senderName,
+          );
+    } on Object catch (_) {}
+
+    if (state != null && state!.status == TransferSessionStatus.connecting) {
+      _beginTransfer();
+    }
   }
 
   void _beginTransfer() {

@@ -36,6 +36,8 @@ import UIKit
         } else if call.method == "stopDiscovery" {
           manager.stopDiscovery()
           result(nil)
+        } else if call.method == "negotiateBand" || call.method == "connectToPeer" {
+          result(nil)
         } else {
           result(FlutterMethodNotImplemented)
         }

@@ -40,6 +40,7 @@ dependencies:
 
   # --- Icons (Material Symbols) ---
   material_symbols_icons: ^4.2796.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

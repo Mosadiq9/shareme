@@ -30,6 +30,15 @@ class MainActivity : FlutterActivity() {
                     discoveryHandler?.stopDiscovery()
                     result.success(null)
                 }
+                "negotiateBand" -> {
+                    val peerId = call.argument<String>("peerId")
+                    val band = call.argument<String>("band")
+                    // In real Android Wi-Fi Direct, WifiP2pConfig is configured here
+                    result.success(null)
+                }
+                "connectToPeer" -> {
+                    result.success(null)
+                }
                 else -> result.notImplemented()
             }
         }
