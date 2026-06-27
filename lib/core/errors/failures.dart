@@ -80,3 +80,11 @@ final class UnexpectedFailure extends Failure {
     super.stackTrace,
   });
 }
+
+/// Security / quarantine violation (hash mismatch, rogue token).
+final class SecurityFailure extends Failure {
+  const SecurityFailure({
+    required super.message,
+    super.stackTrace,
+  });
+}

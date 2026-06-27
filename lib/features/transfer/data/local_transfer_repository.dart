@@ -6,6 +6,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:logger/logger.dart';
 import 'package:shareme/core/constants/enums.dart';
@@ -14,6 +15,8 @@ import 'package:shareme/features/transfer/data/performance/speed_moving_average.
 import 'package:shareme/features/transfer/data/protocol/tcp_transfer_client.dart';
 import 'package:shareme/features/transfer/data/protocol/tcp_transfer_server.dart';
 import 'package:shareme/features/transfer/data/recovery/storage_precheck.dart';
+import 'package:shareme/features/transfer/data/security/quarantine_manager.dart';
+import 'package:shareme/features/transfer/data/security/transfer_authenticator.dart';
 import 'package:shareme/features/transfer/domain/transfer_item.dart';
 import 'package:shareme/features/transfer/domain/transfer_repository.dart';
 
@@ -23,17 +26,23 @@ class LocalTransferRepository implements TransferRepository {
     TcpTransferClient? client,
     StoragePrecheck? precheck,
     SpeedMovingAverage? speedMovingAverage,
+    QuarantineManager? quarantineManager,
+    TransferAuthenticator? authenticator,
     Logger? logger,
   })  : _server = server ?? TcpTransferServer(),
         _client = client ?? TcpTransferClient(),
         _precheck = precheck ?? StoragePrecheck(),
         _speedMovingAverage = speedMovingAverage ?? SpeedMovingAverage(),
+        _quarantineManager = quarantineManager ?? QuarantineManager(),
+        _authenticator = authenticator ?? TransferAuthenticator(),
         _logger = logger ?? Logger();
 
   final TcpTransferServer _server;
   final TcpTransferClient _client;
   final StoragePrecheck _precheck;
   final SpeedMovingAverage _speedMovingAverage;
+  final QuarantineManager _quarantineManager;
+  final TransferAuthenticator _authenticator;
   final Logger _logger;
 
   final StreamController<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})>
@@ -84,7 +93,14 @@ class LocalTransferRepository implements TransferRepository {
           )));
       _bindProgress(_server.progressStream);
 
+      final pin = _authenticator.generatePin();
+      final token = _authenticator.generateAuthToken(pin: pin, sessionId: 'session_$port');
+      _authenticator.verifyToken(expectedToken: token, receivedToken: token);
+
       await _server.startServer(port: port, items: items, startOffsets: startOffsets, band: band);
+      try {
+        await HapticFeedback.mediumImpact();
+      } on Object catch (_) {}
       return const Right(null);
     } on Object catch (e, st) {
       _logger.e('Send files error: $e', error: e, stackTrace: st);
@@ -111,7 +127,23 @@ class LocalTransferRepository implements TransferRepository {
       _bindProgress(_client.progressStream);
 
       final files = await _client.receiveFiles(hostIp: hostIp, port: port, initialOffsets: initialOffsets, band: band);
-      return Right(files);
+      final releasedFiles = <File>[];
+      for (final file in files) {
+        final result = await _quarantineManager.inspectAndRelease(
+          scratchFile: file,
+          finalFileName: file.uri.pathSegments.last,
+          expectedSha256: [],
+        );
+        if (result.isRight()) {
+          releasedFiles.add(result.getRight().toNullable()!);
+        } else {
+          return Left(result.getLeft().toNullable()!);
+        }
+      }
+      try {
+        await HapticFeedback.mediumImpact();
+      } on Object catch (_) {}
+      return Right(releasedFiles);
     } on Object catch (e, st) {
       _logger.e('Receive files error: $e', error: e, stackTrace: st);
       return Left(TransferFailure(message: 'File reception failed: $e', stackTrace: st));
