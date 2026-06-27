@@ -38,6 +38,7 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
 
     @SuppressLint("MissingPermission")
     fun startDiscovery(deviceName: String) {
+        android.util.Log.i("ShareMeDiscovery", "Starting Total Debug Mode Discovery for device: $deviceName")
         discoveredPeers.clear()
 
         // 1. Start mDNS Service Registration & Discovery
@@ -49,12 +50,17 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
         wifiP2pManager = context.getSystemService(Context.WIFI_P2P_SERVICE) as? WifiP2pManager
         channel = wifiP2pManager?.initialize(context, Looper.getMainLooper(), null)
         wifiP2pManager?.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() {}
-            override fun onFailure(reasonCode: Int) {}
+            override fun onSuccess() {
+                android.util.Log.i("ShareMeDiscovery", "Wi-Fi Direct discoverPeers initiated successfully.")
+            }
+            override fun onFailure(reasonCode: Int) {
+                android.util.Log.w("ShareMeDiscovery", "Wi-Fi Direct discoverPeers failed with reason: $reasonCode")
+            }
         })
     }
 
     fun stopDiscovery() {
+        android.util.Log.i("ShareMeDiscovery", "Stopping Discovery.")
         try {
             if (registrationListener != null) {
                 nsdManager?.unregisterService(registrationListener)
@@ -66,7 +72,7 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
             }
             wifiP2pManager?.stopPeerDiscovery(channel, null)
         } catch (e: Exception) {
-            // Ignore stop errors
+            android.util.Log.e("ShareMeDiscovery", "Error stopping discovery: ${e.message}")
         }
     }
 
@@ -78,31 +84,46 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
         }
 
         registrationListener = object : NsdManager.RegistrationListener {
-            override fun onServiceRegistered(NsdServiceInfo: NsdServiceInfo) {}
-            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
-            override fun onServiceUnregistered(arg0: NsdServiceInfo) {}
-            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
+            override fun onServiceRegistered(NsdServiceInfo: NsdServiceInfo) {
+                android.util.Log.i("ShareMeDiscovery", "mDNS Service Registered successfully: ${NsdServiceInfo.serviceName} on port 8888")
+            }
+            override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                android.util.Log.e("ShareMeDiscovery", "mDNS Registration failed: errorCode $errorCode")
+            }
+            override fun onServiceUnregistered(arg0: NsdServiceInfo) {
+                android.util.Log.i("ShareMeDiscovery", "mDNS Service Unregistered.")
+            }
+            override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                android.util.Log.e("ShareMeDiscovery", "mDNS Unregistration failed: errorCode $errorCode")
+            }
         }
 
         try {
             nsdManager?.registerService(serviceInfo, NsdManager.PROTOCOL_DNS_SD, registrationListener)
         } catch (e: Exception) {
-            // Service already registered or blocked
+            android.util.Log.e("ShareMeDiscovery", "Exception registering mDNS: ${e.message}")
         }
     }
 
     private fun discoverMdnsServices() {
         discoveryListener = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(regType: String) {}
+            override fun onDiscoveryStarted(regType: String) {
+                android.util.Log.i("ShareMeDiscovery", "mDNS Service discovery started for regType: $regType")
+            }
             override fun onServiceFound(service: NsdServiceInfo) {
+                android.util.Log.i("ShareMeDiscovery", "mDNS Service found: ${service.serviceName} (${service.serviceType})")
                 if (service.serviceType.contains("_shareme")) {
                     nsdManager?.resolveService(service, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {}
+                        override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                            android.util.Log.e("ShareMeDiscovery", "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
+                        }
                         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                            val hostIp = serviceInfo.host?.hostAddress ?: serviceInfo.serviceName
+                            android.util.Log.i("ShareMeDiscovery", "Resolved mDNS service ${serviceInfo.serviceName} at IP: $hostIp")
                             addOrUpdatePeer(
-                                id = serviceInfo.serviceName,
+                                id = hostIp,
                                 name = serviceInfo.serviceName.replace("ShareMe_", ""),
-                                model = "Android • mDNS LAN",
+                                model = "Android • mDNS LAN ($hostIp)",
                                 rssi = -50
                             )
                         }
@@ -110,21 +131,28 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                 }
             }
             override fun onServiceLost(service: NsdServiceInfo) {
-                discoveredPeers.remove(service.serviceName)
+                android.util.Log.w("ShareMeDiscovery", "mDNS Service lost: ${service.serviceName}")
+                discoveredPeers.entries.removeIf { (k, v) -> (v["name"] as? String) == service.serviceName.replace("ShareMe_", "") }
                 emitPeers()
             }
-            override fun onDiscoveryStopped(serviceType: String) {}
+            override fun onDiscoveryStopped(serviceType: String) {
+                android.util.Log.i("ShareMeDiscovery", "mDNS Service discovery stopped.")
+            }
             override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                android.util.Log.e("ShareMeDiscovery", "mDNS Start discovery failed: $errorCode")
                 nsdManager?.stopServiceDiscovery(this)
             }
             override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
+                android.util.Log.e("ShareMeDiscovery", "mDNS Stop discovery failed: $errorCode")
                 nsdManager?.stopServiceDiscovery(this)
             }
         }
 
         try {
             nsdManager?.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
-        } catch (e: Exception) {}
+        } catch (e: Exception) {
+            android.util.Log.e("ShareMeDiscovery", "Exception starting mDNS discovery: ${e.message}")
+        }
     }
 
     private fun addOrUpdatePeer(id: String, name: String, model: String, rssi: Int) {

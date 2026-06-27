@@ -6,6 +6,7 @@ library;
 
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -218,15 +219,18 @@ class TransferNotifier extends Notifier<TransferSession?> {
   }
 
   Future<void> startPairing(PeerDevice peer) async {
+    debugPrint('🐞 [DEBUG MODE] startPairing initiated with target peer: ${peer.name} (ID/IP: ${peer.id})');
     await _progressSub?.cancel();
 
     final items = ref.read(selectedFilesListProvider);
     if (items.isEmpty) {
+      debugPrint('🐞 [DEBUG MODE] No items selected to send. Redirecting to startReceiving mode.');
       await startReceiving(peer);
       return;
     }
 
     final totalBytes = items.fold<int>(0, (sum, item) => sum + item.sizeBytes);
+    debugPrint('🐞 [DEBUG MODE] Preparing session payload: ${items.length} items totaling $totalBytes bytes.');
 
     state = TransferSession(
       sessionId: const Uuid().v4(),
@@ -237,19 +241,25 @@ class TransferNotifier extends Notifier<TransferSession?> {
 
     final senderName = ref.read(localDeviceNameProvider);
     try {
+      debugPrint('🐞 [DEBUG MODE] Executing pairing negotiation via pairingRepository...');
       await ref.read(pairingRepositoryProvider).negotiatePairing(
             peer: peer,
             items: items,
             senderName: senderName,
           );
-    } on Object catch (_) {}
+      debugPrint('🐞 [DEBUG MODE] Pairing negotiation completed successfully.');
+    } on Object catch (e) {
+      debugPrint('🐞 [DEBUG MODE] Pairing negotiation threw exception: $e');
+    }
 
     if (state != null && state!.status == TransferSessionStatus.connecting) {
+      debugPrint('🐞 [DEBUG MODE] Session confirmed in connecting state. Launching TCP transfer server.');
       await _beginTransfer();
     }
   }
 
   Future<void> startReceiving(PeerDevice peer) async {
+    debugPrint('🐞 [DEBUG MODE] startReceiving initiated with sender: ${peer.name} (ID/IP: ${peer.id})');
     await _progressSub?.cancel();
 
     const totalExpectedBytes = 100 * 1024 * 1024; // Baseline estimated size until negotiated
@@ -266,16 +276,25 @@ class TransferNotifier extends Notifier<TransferSession?> {
     _listenToRealProgress();
 
     final hostIp = peer.id.contains('.') ? peer.id : '192.168.49.1';
+    debugPrint('🐞 [DEBUG MODE] Connecting TCP receiver socket to host IP: $hostIp on port 8888...');
     try {
       unawaited(ref.read(transferRepositoryProvider).receiveFiles(
             hostIp: hostIp,
             port: 8888,
             totalExpectedBytes: totalExpectedBytes,
-          ));
-    } on Object catch (_) {}
+          ).then((result) {
+            result.fold(
+              (failure) => debugPrint('🐞 [DEBUG MODE] receiveFiles failed: ${failure.message}'),
+              (files) => debugPrint('🐞 [DEBUG MODE] receiveFiles succeeded! Received ${files.length} files.'),
+            );
+          }));
+    } on Object catch (e) {
+      debugPrint('🐞 [DEBUG MODE] receiveFiles threw unhandled exception: $e');
+    }
   }
 
   void _listenToRealProgress() {
+    debugPrint('🐞 [DEBUG MODE] Binding real progress stream listener...');
     _progressSub = ref.read(transferRepositoryProvider).watchProgress().listen((event) {
       if (state == null) return;
 
@@ -298,6 +317,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
       }).toList();
 
       if (newTransferred >= state!.totalBytes && state!.totalBytes > 0) {
+        debugPrint('🐞 [DEBUG MODE] Transfer reached 100% completion ($newTransferred / ${state!.totalBytes} bytes). Logging success!');
         _progressSub?.cancel();
         state = state!.copyWith(
           status: TransferSessionStatus.completed,
@@ -321,6 +341,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
   Future<void> _beginTransfer() async {
     if (state == null) return;
 
+    debugPrint('🐞 [DEBUG MODE] _beginTransfer transitioning state to transferring...');
     state = state!.copyWith(
       status: TransferSessionStatus.transferring,
       speedBytesPerSec: 0.0,
@@ -328,15 +349,24 @@ class TransferNotifier extends Notifier<TransferSession?> {
 
     _listenToRealProgress();
 
+    debugPrint('🐞 [DEBUG MODE] Starting sendFiles on port 8888 for ${state!.items.length} items...');
     try {
       unawaited(ref.read(transferRepositoryProvider).sendFiles(
             port: 8888,
             items: state!.items,
-          ));
-    } on Object catch (_) {}
+          ).then((result) {
+            result.fold(
+              (failure) => debugPrint('🐞 [DEBUG MODE] sendFiles failed: ${failure.message}'),
+              (_) => debugPrint('🐞 [DEBUG MODE] sendFiles completed successfully.'),
+            );
+          }));
+    } on Object catch (e) {
+      debugPrint('🐞 [DEBUG MODE] sendFiles threw exception: $e');
+    }
   }
 
   void retryTransfer() {
+    debugPrint('🐞 [DEBUG MODE] Retrying transfer session...');
     if (state != null) {
       state = state!.copyWith(status: TransferSessionStatus.connecting, errorMessage: null);
       unawaited(_beginTransfer());
@@ -344,6 +374,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
   }
 
   void cancelTransfer() {
+    debugPrint('🐞 [DEBUG MODE] Transfer cancelled by user or screen termination.');
     _progressSub?.cancel();
     if (state != null) {
       state = state!.copyWith(status: TransferSessionStatus.failed, errorMessage: 'Transfer cancelled by user.');

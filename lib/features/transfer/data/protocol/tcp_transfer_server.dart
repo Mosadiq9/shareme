@@ -37,13 +37,13 @@ class TcpTransferServer {
     try {
       final bufferSize = _bufferStrategy.getInitialBufferSize(band);
       _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, port);
-      _logger.i('TCP Transfer Server listening on port $port (buffer: $bufferSize B)');
+      _logger.i('🐞 [DEBUG MODE] TCP Transfer Server listening on port $port (buffer: $bufferSize B)');
 
       final totalJobBytes = items.fold<int>(0, (sum, i) => sum + i.sizeBytes);
       var cumulativeBytesSent = 0;
 
       await for (final socket in _serverSocket!) {
-        _logger.i('Peer accepted from ${socket.remoteAddress.address}');
+        _logger.i('🐞 [DEBUG MODE] Peer accepted from ${socket.remoteAddress.address}');
         try {
           for (final item in items) {
             final file = File(item.filePath);
@@ -51,7 +51,7 @@ class TcpTransferServer {
             try {
               fileBytes = await file.readAsBytes();
             } on Object catch (_) {
-              _logger.w('File missing or unreadable during transfer: ${item.filePath}');
+              _logger.w('🐞 [DEBUG MODE] File missing or unreadable during transfer: ${item.filePath}');
               continue;
             }
             final digest = sha256.convert(fileBytes);
@@ -68,7 +68,7 @@ class TcpTransferServer {
 
             final startOffset = startOffsets?[item.id] ?? 0;
             if (startOffset > 0) {
-              _logger.i('Seeking file ${item.fileName} to resume offset $startOffset');
+              _logger.i('🐞 [DEBUG MODE] Seeking file ${item.fileName} to resume offset $startOffset');
               cumulativeBytesSent += startOffset;
             }
 
@@ -85,15 +85,15 @@ class TcpTransferServer {
           }
           await socket.flush();
           await socket.close();
-          _logger.i('All files transmitted successfully.');
+          _logger.i('🐞 [DEBUG MODE] All files transmitted successfully.');
         } on Object catch (e, st) {
-          _logger.e('Socket error during transfer transmission: $e', error: e, stackTrace: st);
+          _logger.e('🐞 [DEBUG MODE] Socket error during transfer transmission: $e', error: e, stackTrace: st);
           socket.destroy();
         }
         break; // Serve one transfer session per bind
       }
     } on Object catch (e, st) {
-      _logger.e('Failed to start TCP server: $e', error: e, stackTrace: st);
+      _logger.e('🐞 [DEBUG MODE] Failed to start TCP server: $e', error: e, stackTrace: st);
       rethrow;
     } finally {
       await stopServer();

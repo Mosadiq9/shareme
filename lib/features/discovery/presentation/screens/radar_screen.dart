@@ -218,7 +218,13 @@ class _PeerCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(peer.name, style: AppTypography.labelLarge),
+                    Flexible(
+                      child: Text(
+                        peer.name,
+                        style: AppTypography.labelLarge,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                     const SizedBox(width: 6),
                     if (peer.is5GhzSupported)
                       Container(

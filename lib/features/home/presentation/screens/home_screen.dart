@@ -63,9 +63,12 @@ class HomeScreen extends ConsumerWidget {
                   children: [
                     const Icon(Icons.smartphone_rounded, size: 16, color: AppColors.accentSignal),
                     const SizedBox(width: 6),
-                    Text(
-                      'Visible as: $deviceName',
-                      style: AppTypography.labelSmall.copyWith(color: AppColors.textPrimary),
+                    Flexible(
+                      child: Text(
+                        'Visible as: $deviceName',
+                        style: AppTypography.labelSmall.copyWith(color: AppColors.textPrimary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
                 ),
@@ -250,7 +253,14 @@ class _HistoryCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(item.peerName, style: AppTypography.labelLarge),
+                    Expanded(
+                      child: Text(
+                        item.peerName,
+                        style: AppTypography.labelLarge,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text(
                       formatRelativeTime(item.timestampEpochMs),
                       style: AppTypography.labelSmall,
@@ -260,11 +270,14 @@ class _HistoryCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    Text(
-                      '${item.fileCount} ${item.fileCount == 1 ? 'file' : 'files'} • ${formatFileSize(item.totalSizeBytes)}',
-                      style: AppTypography.bodySmall,
+                    Expanded(
+                      child: Text(
+                        '${item.fileCount} ${item.fileCount == 1 ? 'file' : 'files'} • ${formatFileSize(item.totalSizeBytes)}',
+                        style: AppTypography.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    const Spacer(),
+                    const SizedBox(width: 8),
                     if (!item.isSuccess)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),

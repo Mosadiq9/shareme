@@ -40,7 +40,7 @@ class TcpTransferClient {
     try {
       final bufferSize = _bufferStrategy.getInitialBufferSize(band);
       _socket = await Socket.connect(hostIp, port, timeout: const Duration(seconds: 5));
-      _logger.i('Connected to TCP sender at $hostIp:$port (buffer strategy: $bufferSize B)');
+      _logger.i('🐞 [DEBUG MODE] Connected to TCP sender at $hostIp:$port (buffer strategy: $bufferSize B)');
 
       final downloadDir = await getTemporaryDirectory();
       var buffer = Uint8List(0);
@@ -81,11 +81,11 @@ class TcpTransferClient {
                 currentSink = currentFile!.openWrite(mode: FileMode.append);
                 currentFileBytesReceived = existingOffset;
                 cumulativeBytesReceived += existingOffset;
-                _logger.i('Resuming receive for file: ${h.fileName} from offset $existingOffset');
+                _logger.i('🐞 [DEBUG MODE] Resuming receive for file: ${h.fileName} from offset $existingOffset');
               } else {
                 currentSink = currentFile!.openWrite();
                 currentFileBytesReceived = 0;
-                _logger.i('Starting receive for file: ${h.fileName} (${h.fileSizeBytes} B)');
+                _logger.i('🐞 [DEBUG MODE] Starting receive for file: ${h.fileName} (${h.fileSizeBytes} B)');
               }
             } else {
               final bytesNeeded = header.fileSizeBytes - currentFileBytesReceived;
@@ -122,13 +122,13 @@ class TcpTransferClient {
                 }
 
                 if (isCorrupted) {
-                  _logger.e('Checksum mismatch! Quarantining file: ${header.fileName}');
+                  _logger.e('🐞 [DEBUG MODE] Checksum mismatch! Quarantining file: ${header.fileName}');
                   try {
                     await file.delete();
                   } on Object catch (_) {}
                   throw Exception('Checksum verification failed for ${header.fileName}');
                 } else {
-                  _logger.i('Verified & saved: ${header.fileName}');
+                  _logger.i('🐞 [DEBUG MODE] Verified & saved: ${header.fileName}');
                   downloadedFiles.add(file);
                 }
 
@@ -140,18 +140,18 @@ class TcpTransferClient {
           }
         },
         onDone: () {
-          _logger.i('Socket connection closed by sender.');
+          _logger.i('🐞 [DEBUG MODE] Socket connection closed by sender.');
           if (!completer.isCompleted) completer.complete(downloadedFiles);
         },
         onError: (Object e) {
-          _logger.e('Socket client error: $e');
+          _logger.e('🐞 [DEBUG MODE] Socket client error: $e');
           if (!completer.isCompleted) completer.completeError(e);
         },
       );
 
       return await completer.future;
     } on Object catch (e, st) {
-      _logger.e('Failed to receive files over TCP: $e', error: e, stackTrace: st);
+      _logger.e('🐞 [DEBUG MODE] Failed to receive files over TCP: $e', error: e, stackTrace: st);
       rethrow;
     } finally {
       await currentSink?.close();

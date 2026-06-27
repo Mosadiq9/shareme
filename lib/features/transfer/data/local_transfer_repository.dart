@@ -56,10 +56,11 @@ class LocalTransferRepository implements TransferRepository {
     return _progressController.stream;
   }
 
-  void _bindProgress(Stream<({int bytesTransferred, int totalBytes})> rawStream) {
+  StreamSubscription<({int bytesTransferred, int totalBytes})> _bindProgress(
+      Stream<({int bytesTransferred, int totalBytes})> rawStream) {
     _speedMovingAverage.reset();
 
-    rawStream.listen((event) {
+    return rawStream.listen((event) {
       final now = DateTime.now();
       _speedMovingAverage.addSample(bytesTransferred: event.bytesTransferred, timestamp: now);
 
@@ -67,10 +68,12 @@ class LocalTransferRepository implements TransferRepository {
       final remainingBytes = event.totalBytes - event.bytesTransferred;
       final eta = _speedMovingAverage.calculateEtaSeconds(remainingBytes);
 
+      _logger.d('🐞 [DEBUG MODE] Transfer progress: ${event.bytesTransferred} / ${event.totalBytes} bytes | Speed: ${(speed / 1024 / 1024).toStringAsFixed(2)} MB/s | ETA: ${eta}s');
+
       _progressController.add((
         bytesTransferred: event.bytesTransferred,
         totalBytes: event.totalBytes,
-        speedBytesPerSec: speed > 0 ? speed : 0.0, // Baseline throughput before EMA warmup
+        speedBytesPerSec: speed > 0 ? speed : 0.0,
         etaSeconds: eta > 0 ? eta : 1,
       ));
     });
@@ -84,26 +87,22 @@ class LocalTransferRepository implements TransferRepository {
     WifiBand band = WifiBand.ghz5,
   }) async {
     try {
+      _logger.i('🐞 [DEBUG MODE] LocalTransferRepository.sendFiles starting on port $port for ${items.length} items.');
       await _serverSub?.cancel();
-      _serverSub = _server.progressStream.listen((e) => _progressController.add((
-            bytesTransferred: e.bytesTransferred,
-            totalBytes: e.totalBytes,
-            speedBytesPerSec: 45.2 * 1024 * 1024,
-            etaSeconds: 2,
-          )));
-      _bindProgress(_server.progressStream);
+      _serverSub = _bindProgress(_server.progressStream);
 
       final pin = _authenticator.generatePin();
       final token = _authenticator.generateAuthToken(pin: pin, sessionId: 'session_$port');
       _authenticator.verifyToken(expectedToken: token, receivedToken: token);
 
       await _server.startServer(port: port, items: items, startOffsets: startOffsets, band: band);
+      _logger.i('🐞 [DEBUG MODE] LocalTransferRepository.sendFiles completed successfully.');
       try {
         await HapticFeedback.mediumImpact();
       } on Object catch (_) {}
       return const Right(null);
     } on Object catch (e, st) {
-      _logger.e('Send files error: $e', error: e, stackTrace: st);
+      _logger.e('🐞 [DEBUG MODE] Send files error: $e', error: e, stackTrace: st);
       return Left(TransferFailure(message: 'Transfer execution failed: $e', stackTrace: st));
     }
   }
@@ -117,14 +116,16 @@ class LocalTransferRepository implements TransferRepository {
     WifiBand band = WifiBand.ghz5,
   }) async {
     try {
+      _logger.i('🐞 [DEBUG MODE] LocalTransferRepository.receiveFiles connecting to host $hostIp:$port (Expecting $totalExpectedBytes bytes).');
       // 1. Pre-flight storage check
       final precheckResult = await _precheck.verifyAvailableStorage(requiredSizeBytes: totalExpectedBytes);
       if (precheckResult.isLeft()) {
+        _logger.w('🐞 [DEBUG MODE] Pre-flight storage check failed: ${precheckResult.getLeft().toNullable()?.message}');
         return Left(precheckResult.getLeft().toNullable()!);
       }
 
       await _clientSub?.cancel();
-      _bindProgress(_client.progressStream);
+      _clientSub = _bindProgress(_client.progressStream);
 
       final files = await _client.receiveFiles(hostIp: hostIp, port: port, initialOffsets: initialOffsets, band: band);
       final releasedFiles = <File>[];
@@ -145,7 +146,7 @@ class LocalTransferRepository implements TransferRepository {
       } on Object catch (_) {}
       return Right(releasedFiles);
     } on Object catch (e, st) {
-      _logger.e('Receive files error: $e', error: e, stackTrace: st);
+      _logger.e('🐞 [DEBUG MODE] Receive files error: $e', error: e, stackTrace: st);
       return Left(TransferFailure(message: 'File reception failed: $e', stackTrace: st));
     }
   }
