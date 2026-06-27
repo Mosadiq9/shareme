@@ -11,6 +11,7 @@ import 'package:logger/logger.dart';
 import 'package:shareme/core/errors/failures.dart';
 import 'package:shareme/features/transfer/data/protocol/tcp_transfer_client.dart';
 import 'package:shareme/features/transfer/data/protocol/tcp_transfer_server.dart';
+import 'package:shareme/features/transfer/data/recovery/storage_precheck.dart';
 import 'package:shareme/features/transfer/domain/transfer_item.dart';
 import 'package:shareme/features/transfer/domain/transfer_repository.dart';
 
@@ -18,13 +19,16 @@ class LocalTransferRepository implements TransferRepository {
   LocalTransferRepository({
     TcpTransferServer? server,
     TcpTransferClient? client,
+    StoragePrecheck? precheck,
     Logger? logger,
   })  : _server = server ?? TcpTransferServer(),
         _client = client ?? TcpTransferClient(),
+        _precheck = precheck ?? StoragePrecheck(),
         _logger = logger ?? Logger();
 
   final TcpTransferServer _server;
   final TcpTransferClient _client;
+  final StoragePrecheck _precheck;
   final Logger _logger;
 
   final StreamController<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})>
@@ -73,7 +77,11 @@ class LocalTransferRepository implements TransferRepository {
   }
 
   @override
-  Future<Either<Failure, void>> sendFiles({required int port, required List<TransferItem> items}) async {
+  Future<Either<Failure, void>> sendFiles({
+    required int port,
+    required List<TransferItem> items,
+    Map<String, int>? startOffsets,
+  }) async {
     try {
       await _serverSub?.cancel();
       _serverSub = _server.progressStream.listen((e) => _progressController.add((
@@ -84,7 +92,7 @@ class LocalTransferRepository implements TransferRepository {
           )));
       _bindProgress(_server.progressStream);
 
-      await _server.startServer(port: port, items: items);
+      await _server.startServer(port: port, items: items, startOffsets: startOffsets);
       return const Right(null);
     } on Object catch (e, st) {
       _logger.e('Send files error: $e', error: e, stackTrace: st);
@@ -93,12 +101,23 @@ class LocalTransferRepository implements TransferRepository {
   }
 
   @override
-  Future<Either<Failure, List<File>>> receiveFiles({required String hostIp, required int port}) async {
+  Future<Either<Failure, List<File>>> receiveFiles({
+    required String hostIp,
+    required int port,
+    required int totalExpectedBytes,
+    Map<String, int>? initialOffsets,
+  }) async {
     try {
+      // 1. Pre-flight storage check
+      final precheckResult = await _precheck.verifyAvailableStorage(requiredSizeBytes: totalExpectedBytes);
+      if (precheckResult.isLeft()) {
+        return Left(precheckResult.getLeft().toNullable()!);
+      }
+
       await _clientSub?.cancel();
       _bindProgress(_client.progressStream);
 
-      final files = await _client.receiveFiles(hostIp: hostIp, port: port);
+      final files = await _client.receiveFiles(hostIp: hostIp, port: port, initialOffsets: initialOffsets);
       return Right(files);
     } on Object catch (e, st) {
       _logger.e('Receive files error: $e', error: e, stackTrace: st);

@@ -24,7 +24,11 @@ class TcpTransferClient {
       _progressController.stream;
 
   /// Connect to sender at [hostIp]:[port] and receive incoming file stream.
-  Future<List<File>> receiveFiles({required String hostIp, required int port}) async {
+  Future<List<File>> receiveFiles({
+    required String hostIp,
+    required int port,
+    Map<String, int>? initialOffsets,
+  }) async {
     final downloadedFiles = <File>[];
     IOSink? currentSink;
     try {
@@ -64,9 +68,18 @@ class TcpTransferClient {
               final h = currentHeader!;
               final filePath = '${downloadDir.path}/${h.fileName}';
               currentFile = File(filePath);
-              currentSink = currentFile!.openWrite();
-              currentFileBytesReceived = 0;
-              _logger.i('Starting receive for file: ${h.fileName} (${h.fileSizeBytes} B)');
+
+              final existingOffset = initialOffsets?[h.fileId] ?? 0;
+              if (existingOffset > 0) {
+                currentSink = currentFile!.openWrite(mode: FileMode.append);
+                currentFileBytesReceived = existingOffset;
+                cumulativeBytesReceived += existingOffset;
+                _logger.i('Resuming receive for file: ${h.fileName} from offset $existingOffset');
+              } else {
+                currentSink = currentFile!.openWrite();
+                currentFileBytesReceived = 0;
+                _logger.i('Starting receive for file: ${h.fileName} (${h.fileSizeBytes} B)');
+              }
             } else {
               final bytesNeeded = header.fileSizeBytes - currentFileBytesReceived;
               if (buffer.length <= bytesNeeded) {

@@ -23,7 +23,11 @@ class TcpTransferServer {
       _progressController.stream;
 
   /// Start TCP server on [port] and stream [items] to the connecting peer.
-  Future<void> startServer({required int port, required List<TransferItem> items}) async {
+  Future<void> startServer({
+    required int port,
+    required List<TransferItem> items,
+    Map<String, int>? startOffsets,
+  }) async {
     try {
       _serverSocket = await ServerSocket.bind(InternetAddress.anyIPv4, port);
       _logger.i('TCP Transfer Server listening on port $port');
@@ -55,8 +59,14 @@ class TcpTransferServer {
             final headerBytes = BinaryPacketCodec.encodeHeader(header);
             socket.add(headerBytes);
 
-            // Stream 64KB bounded chunks
-            final openStream = file.openRead();
+            final startOffset = startOffsets?[item.id] ?? 0;
+            if (startOffset > 0) {
+              _logger.i('Seeking file ${item.fileName} to resume offset $startOffset');
+              cumulativeBytesSent += startOffset;
+            }
+
+            // Stream 64KB bounded chunks starting from startOffset
+            final openStream = file.openRead(startOffset);
             await for (final chunk in openStream) {
               socket.add(chunk);
               cumulativeBytesSent += chunk.length;

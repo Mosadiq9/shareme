@@ -348,7 +348,21 @@ class TransferNotifier extends Notifier<TransferSession?> {
 
   void retryTransfer() {
     if (state != null) {
-      startPairing(state!.peerDevice);
+      state = state!.copyWith(
+        status: TransferSessionStatus.connecting,
+        errorMessage: null,
+      );
+      unawaited(_beginTransfer());
+    }
+  }
+
+  void resumeTransfer() {
+    if (state != null) {
+      state = state!.copyWith(
+        status: TransferSessionStatus.transferring,
+        errorMessage: null,
+      );
+      unawaited(_beginTransfer());
     }
   }
 

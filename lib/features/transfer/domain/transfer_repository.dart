@@ -14,10 +14,19 @@ abstract interface class TransferRepository {
   Stream<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})> watchProgress();
 
   /// Start TCP server and stream [items] to connecting peer.
-  Future<Either<Failure, void>> sendFiles({required int port, required List<TransferItem> items});
+  Future<Either<Failure, void>> sendFiles({
+    required int port,
+    required List<TransferItem> items,
+    Map<String, int>? startOffsets,
+  });
 
   /// Connect to sender at [hostIp]:[port] and download files to disk.
-  Future<Either<Failure, List<File>>> receiveFiles({required String hostIp, required int port});
+  Future<Either<Failure, List<File>>> receiveFiles({
+    required String hostIp,
+    required int port,
+    required int totalExpectedBytes,
+    Map<String, int>? initialOffsets,
+  });
 
   /// Stop active socket transmission.
   Future<Either<Failure, void>> stopTransfer();
