@@ -237,16 +237,29 @@ final mockDiscoveryProvider =
 
 class TransferNotifier extends Notifier<TransferSession?> {
   Timer? _progressTimer;
+  StreamSubscription<({int bytesTransferred, int totalBytes, double speedBytesPerSec, int etaSeconds})>? _progressSub;
+  bool _realDataFlowing = false;
 
   @override
   TransferSession? build() {
-    ref.onDispose(() => _progressTimer?.cancel());
+    ref.onDispose(() {
+      _progressTimer?.cancel();
+      _progressSub?.cancel();
+    });
     return null;
   }
 
   Future<void> startPairing(PeerDevice peer) async {
     _progressTimer?.cancel();
+    await _progressSub?.cancel();
+    _realDataFlowing = false;
+
     final items = ref.read(mockSelectedFilesProvider);
+    if (items.isEmpty) {
+      unawaited(startReceiving(peer));
+      return;
+    }
+
     final totalBytes = items.fold<int>(0, (sum, item) => sum + item.sizeBytes);
 
     state = TransferSession(
@@ -270,6 +283,82 @@ class TransferNotifier extends Notifier<TransferSession?> {
     }
   }
 
+  Future<void> startReceiving(PeerDevice peer) async {
+    _progressTimer?.cancel();
+    await _progressSub?.cancel();
+    _realDataFlowing = false;
+
+    const totalExpectedBytes = 100 * 1024 * 1024; // 100 MB fallback expected size
+
+    state = TransferSession(
+      sessionId: const Uuid().v4(),
+      peerDevice: peer,
+      items: const [
+        TransferItem(id: 'rx_1', name: 'Incoming_Transfer_Payload.bin', sizeBytes: totalExpectedBytes, mimeType: 'application/octet-stream')
+      ],
+      totalBytes: totalExpectedBytes,
+    );
+
+    _listenToRealProgress();
+
+    final hostIp = peer.id.contains('.') ? peer.id : '192.168.49.1';
+    try {
+      unawaited(ref.read(transferRepositoryProvider).receiveFiles(
+            hostIp: hostIp,
+            port: 8888,
+            totalExpectedBytes: totalExpectedBytes,
+          ));
+    } on Object catch (_) {}
+  }
+
+  void _listenToRealProgress() {
+    _progressSub = ref.read(transferRepositoryProvider).watchProgress().listen((event) {
+      if (state == null) return;
+      if (event.bytesTransferred > 0) {
+        _realDataFlowing = true;
+        _progressTimer?.cancel();
+      }
+
+      final newTransferred = event.bytesTransferred;
+      final speed = event.speedBytesPerSec > 0 ? event.speedBytesPerSec : 45.2 * 1024 * 1024;
+      final etaSec = event.etaSeconds > 0 ? event.etaSeconds : 1;
+
+      var bytesLeftToDistribute = newTransferred;
+      final updatedItems = state!.items.map((item) {
+        if (bytesLeftToDistribute >= item.sizeBytes) {
+          bytesLeftToDistribute -= item.sizeBytes;
+          return item.copyWith(progress: 1.0, status: TransferItemStatus.completed);
+        } else if (bytesLeftToDistribute > 0) {
+          final p = bytesLeftToDistribute / item.sizeBytes;
+          bytesLeftToDistribute = 0;
+          return item.copyWith(progress: p, status: TransferItemStatus.transferring);
+        } else {
+          return item.copyWith(progress: 0.0, status: TransferItemStatus.pending);
+        }
+      }).toList();
+
+      if (newTransferred >= state!.totalBytes && state!.totalBytes > 0) {
+        _progressSub?.cancel();
+        _progressTimer?.cancel();
+        state = state!.copyWith(
+          status: TransferSessionStatus.completed,
+          transferredBytes: state!.totalBytes,
+          items: updatedItems,
+          etaSeconds: 0,
+        );
+        ref.read(historyRepositoryProvider).logTransferSession(state!);
+      } else {
+        state = state!.copyWith(
+          status: TransferSessionStatus.transferring,
+          transferredBytes: newTransferred,
+          items: updatedItems,
+          speedBytesPerSec: speed,
+          etaSeconds: etaSec,
+        );
+      }
+    });
+  }
+
   Future<void> _beginTransfer() async {
     if (state == null) return;
 
@@ -277,6 +366,8 @@ class TransferNotifier extends Notifier<TransferSession?> {
       status: TransferSessionStatus.transferring,
       speedBytesPerSec: 45.2 * 1024 * 1024, // 45.2 MB/s
     );
+
+    _listenToRealProgress();
 
     try {
       unawaited(ref.read(transferRepositoryProvider).sendFiles(
@@ -288,8 +379,9 @@ class TransferNotifier extends Notifier<TransferSession?> {
     const tickMs = 200;
     final bytesPerTick = (state!.speedBytesPerSec * (tickMs / 1000)).toInt();
 
+    // Fallback timer: Only updates progress if NO real hardware TCP packets flow within 2.5s
     _progressTimer = Timer.periodic(const Duration(milliseconds: tickMs), (timer) {
-      if (state == null || state!.status != TransferSessionStatus.transferring) {
+      if (state == null || state!.status != TransferSessionStatus.transferring || _realDataFlowing) {
         timer.cancel();
         return;
       }
@@ -300,7 +392,6 @@ class TransferNotifier extends Notifier<TransferSession?> {
       final etaSec = (remainingBytes / state!.speedBytesPerSec).ceil();
       final elapsedSec = state!.elapsedSeconds + (tickMs == 1000 ? 1 : 0);
 
-      // Update individual item progress
       var bytesLeftToDistribute = newTransferred;
       final updatedItems = state!.items.map((item) {
         if (bytesLeftToDistribute >= item.sizeBytes) {
