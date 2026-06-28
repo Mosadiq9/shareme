@@ -7,6 +7,7 @@ library;
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:logger/logger.dart';
 import 'package:shareme/core/constants/enums.dart';
@@ -88,6 +89,7 @@ class LocalTransferRepository implements TransferRepository {
     WifiBand band = WifiBand.ghz5,
   }) async {
     try {
+      try { await WakelockPlus.enable(); } on Object catch (_) {}
       _logger.i('🐞 [DEBUG MODE] LocalTransferRepository.sendFiles starting on port $port for ${items.length} items.');
       await _serverSub?.cancel();
       _serverSub = _bindProgress(_server.progressStream);
@@ -105,6 +107,8 @@ class LocalTransferRepository implements TransferRepository {
     } on Object catch (e, st) {
       _logger.e('🐞 [DEBUG MODE] Send files error: $e', error: e, stackTrace: st);
       return Left(TransferFailure(message: 'Transfer execution failed: $e', stackTrace: st));
+    } finally {
+      try { await WakelockPlus.disable(); } on Object catch (_) {}
     }
   }
 
@@ -117,6 +121,7 @@ class LocalTransferRepository implements TransferRepository {
     WifiBand band = WifiBand.ghz5,
   }) async {
     try {
+      try { await WakelockPlus.enable(); } on Object catch (_) {}
       _logger.i('🐞 [DEBUG MODE] LocalTransferRepository.receiveFiles connecting to host $hostIp:$port (Expecting $totalExpectedBytes bytes).');
       // 1. Pre-flight storage check
       final precheckResult = await _precheck.verifyAvailableStorage(requiredSizeBytes: totalExpectedBytes);
@@ -149,12 +154,15 @@ class LocalTransferRepository implements TransferRepository {
     } on Object catch (e, st) {
       _logger.e('🐞 [DEBUG MODE] Receive files error: $e', error: e, stackTrace: st);
       return Left(TransferFailure(message: 'File reception failed: $e', stackTrace: st));
+    } finally {
+      try { await WakelockPlus.disable(); } on Object catch (_) {}
     }
   }
 
   @override
   Future<Either<Failure, void>> stopTransfer() async {
     try {
+      try { await WakelockPlus.disable(); } on Object catch (_) {}
       await _serverSub?.cancel();
       await _clientSub?.cancel();
       await _server.stopServer();

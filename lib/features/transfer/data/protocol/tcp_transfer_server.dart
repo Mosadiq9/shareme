@@ -75,16 +75,25 @@ class TcpTransferServer {
               cumulativeBytesSent += startOffset;
             }
 
-            // Stream 64KB bounded chunks starting from startOffset
+            // Stream chunks with throttled progress emissions (512KB / 100ms) to prevent UI thread starvation
+            var lastEmittedBytes = cumulativeBytesSent;
+            var lastEmitTime = DateTime.now();
             final openStream = file.openRead(startOffset);
             await for (final chunk in openStream) {
               socket.add(chunk);
               cumulativeBytesSent += chunk.length;
-              _progressController.add((
-                bytesTransferred: cumulativeBytesSent,
-                totalBytes: totalJobBytes,
-                currentFileName: item.name,
-              ));
+              final now = DateTime.now();
+              if (cumulativeBytesSent - lastEmittedBytes >= 524288 ||
+                  now.difference(lastEmitTime).inMilliseconds >= 100 ||
+                  cumulativeBytesSent >= totalJobBytes) {
+                lastEmittedBytes = cumulativeBytesSent;
+                lastEmitTime = now;
+                _progressController.add((
+                  bytesTransferred: cumulativeBytesSent,
+                  totalBytes: totalJobBytes,
+                  currentFileName: item.name,
+                ));
+              }
             }
           }
           await socket.flush();

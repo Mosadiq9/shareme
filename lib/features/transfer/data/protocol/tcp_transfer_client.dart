@@ -70,6 +70,8 @@ class TcpTransferClient {
       File? currentFile;
       var currentFileBytesReceived = 0;
       var cumulativeBytesReceived = 0;
+      var lastEmittedBytes = 0;
+      var lastEmitTime = DateTime.now();
 
       final completer = Completer<List<File>>();
 
@@ -86,39 +88,53 @@ class TcpTransferClient {
             final file = currentFile;
             if (header == null || sink == null || file == null) {
               final decodeResult = BinaryPacketCodec.decodeHeader(buffer);
-              if (decodeResult == null) {
-                break; // Need more bytes for header
-              }
+              if (decodeResult == null) break;
               currentHeader = decodeResult.header;
-              final payloadOffset = decodeResult.payloadOffset;
-              buffer = buffer.sublist(payloadOffset);
+              buffer = buffer.sublist(decodeResult.payloadOffset);
 
-              final h = currentHeader!;
-              final filePath = '${downloadDir.path}/${h.fileName}';
-              currentFile = File(filePath);
+              final header = currentHeader!;
+              final filePath = '${downloadDir.path}/${header.fileName}';
+              final file = File(filePath);
+              currentFile = file;
+              downloadedFiles.add(file);
 
-              final existingOffset = initialOffsets?[h.fileId] ?? 0;
-              if (existingOffset > 0) {
-                currentSink = currentFile!.openWrite(mode: FileMode.append);
+              var existingOffset = 0;
+              if (initialOffsets != null && initialOffsets.containsKey(header.fileId)) {
+                existingOffset = initialOffsets[header.fileId]!;
+              }
+
+              if (existingOffset > 0 && await file.exists()) {
+                currentSink = file.openWrite(mode: FileMode.append);
                 currentFileBytesReceived = existingOffset;
                 cumulativeBytesReceived += existingOffset;
-                _logger.i('🐞 [DEBUG MODE] Resuming receive for file: ${h.fileName} from offset $existingOffset');
+                _logger.i('🐞 [DEBUG MODE] Resuming receive for file: ${header.fileName} from offset $existingOffset');
               } else {
-                currentSink = currentFile!.openWrite();
+                currentSink = file.openWrite();
                 currentFileBytesReceived = 0;
-                _logger.i('🐞 [DEBUG MODE] Starting receive for file: ${h.fileName} (${h.fileSizeBytes} B)');
+                _logger.i('🐞 [DEBUG MODE] Starting receive for file: ${header.fileName} (${header.fileSizeBytes} B)');
               }
             } else {
+              final header = currentHeader!;
+              final file = currentFile!;
+              final sink = currentSink!;
+
               final bytesNeeded = header.fileSizeBytes - currentFileBytesReceived;
               if (buffer.length <= bytesNeeded) {
                 sink.add(buffer);
                 currentFileBytesReceived += buffer.length;
                 cumulativeBytesReceived += buffer.length;
-                _progressController.add((
-                  bytesTransferred: cumulativeBytesReceived,
-                  totalBytes: header.fileSizeBytes, // Single/multi file tracking
-                  currentFileName: header.fileName,
-                ));
+                final now = DateTime.now();
+                if (cumulativeBytesReceived - lastEmittedBytes >= 524288 ||
+                    now.difference(lastEmitTime).inMilliseconds >= 100 ||
+                    currentFileBytesReceived >= header.fileSizeBytes) {
+                  lastEmittedBytes = cumulativeBytesReceived;
+                  lastEmitTime = now;
+                  _progressController.add((
+                    bytesTransferred: cumulativeBytesReceived,
+                    totalBytes: header.fileSizeBytes,
+                    currentFileName: header.fileName,
+                  ));
+                }
                 buffer = Uint8List(0);
               } else {
                 final chunk = buffer.sublist(0, bytesNeeded);
@@ -126,6 +142,18 @@ class TcpTransferClient {
                 currentFileBytesReceived += chunk.length;
                 cumulativeBytesReceived += chunk.length;
                 buffer = buffer.sublist(bytesNeeded);
+                final now = DateTime.now();
+                if (cumulativeBytesReceived - lastEmittedBytes >= 524288 ||
+                    now.difference(lastEmitTime).inMilliseconds >= 100 ||
+                    currentFileBytesReceived >= header.fileSizeBytes) {
+                  lastEmittedBytes = cumulativeBytesReceived;
+                  lastEmitTime = now;
+                  _progressController.add((
+                    bytesTransferred: cumulativeBytesReceived,
+                    totalBytes: header.fileSizeBytes,
+                    currentFileName: header.fileName,
+                  ));
+                }
               }
 
               if (currentFileBytesReceived >= header.fileSizeBytes) {
@@ -135,9 +163,8 @@ class TcpTransferClient {
                 } on Object catch (_) {}
                 currentSink = null;
 
-                // Verify checksum
-                final fileBytes = await file.readAsBytes();
-                final calculatedDigest = sha256.convert(fileBytes);
+                // Verify checksum via streaming chunks to prevent 900MB RAM spike & 7s completion lag
+                final calculatedDigest = await sha256.bind(file.openRead()).first;
                 var isCorrupted = false;
                 for (var i = 0; i < 32; i++) {
                   if (calculatedDigest.bytes[i] != header.sha256Bytes[i]) {

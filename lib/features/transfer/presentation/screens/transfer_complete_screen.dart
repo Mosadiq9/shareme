@@ -13,7 +13,6 @@ import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
 import 'package:shareme/core/utils/file_utils.dart';
 import 'package:shareme/core/widgets/app_button.dart';
-import 'package:shareme/core/widgets/app_toast.dart';
 import 'package:shareme/routing/route_names.dart';
 
 class TransferCompleteScreen extends ConsumerWidget {
