@@ -18,9 +18,14 @@ class LocalDiscoveryRepository implements DiscoveryRepository {
   Stream<Either<Failure, List<PeerDevice>>> watchNearbyPeers() {
     return _dataSource.watchDiscoveredPeers().map((maps) {
       try {
-        final peers = maps.map(PeerDevice.fromJson).toList();
+        // print('🐞 [DEBUG] Raw maps from Kotlin: $maps');
+        final peers = maps.map((m) {
+            final castedMap = Map<String, dynamic>.from(m);
+            return PeerDevice.fromJson(castedMap);
+        }).toList();
         return Right<Failure, List<PeerDevice>>(peers);
       } on Object catch (e, st) {
+        print('🐞 [FATAL ERROR] Crash in parsing: $e\n$st');
         return Left<Failure, List<PeerDevice>>(
           DiscoveryFailure(message: 'Failed to parse discovered peer data: $e', stackTrace: st),
         );

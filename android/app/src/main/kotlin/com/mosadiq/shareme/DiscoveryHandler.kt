@@ -1,7 +1,10 @@
 package com.mosadiq.shareme
 
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.net.wifi.p2p.WifiP2pDevice
@@ -22,9 +25,11 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
     private val discoveredPeers = mutableMapOf<String, Map<String, Any>>()
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
+    private var p2pReceiver: BroadcastReceiver? = null
     private var myDeviceName: String = ""
     private var registeredServiceName: String = ""
     private var myUuid: String = ""
+    private var myP2pAddress: String = ""
 
     private fun isSelfIp(ip: String): Boolean {
         try {
@@ -71,6 +76,9 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
         // 2. Start Wi-Fi Direct Peer Discovery
         wifiP2pManager = context.getSystemService(Context.WIFI_P2P_SERVICE) as? WifiP2pManager
         channel = wifiP2pManager?.initialize(context, Looper.getMainLooper(), null)
+        
+        registerP2pReceiver()
+        
         wifiP2pManager?.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {
                 android.util.Log.i("ShareMeDiscovery", "Wi-Fi Direct discoverPeers initiated successfully.")
@@ -93,8 +101,45 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                 discoveryListener = null
             }
             wifiP2pManager?.stopPeerDiscovery(channel, null)
+            unregisterP2pReceiver()
         } catch (e: Exception) {
             android.util.Log.e("ShareMeDiscovery", "Error stopping discovery: ${e.message}")
+        }
+    }
+
+    private fun registerP2pReceiver() {
+        if (p2pReceiver != null) return
+        val filter = IntentFilter().apply {
+            addAction(WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION)
+            addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
+        }
+        p2pReceiver = object : BroadcastReceiver() {
+            @SuppressLint("MissingPermission")
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
+                        val device = intent.getParcelableExtra<WifiP2pDevice>(WifiP2pManager.EXTRA_WIFI_P2P_DEVICE)
+                        if (device != null) {
+                            myP2pAddress = device.deviceAddress
+                            // Re-register mDNS if we got our address after initial registration
+                            if (registeredServiceName.isNotEmpty()) {
+                                nsdManager?.unregisterService(registrationListener)
+                                registerMdnsService(myDeviceName, myUuid)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        context.registerReceiver(p2pReceiver, filter)
+    }
+
+    private fun unregisterP2pReceiver() {
+        p2pReceiver?.let {
+            try {
+                context.unregisterReceiver(it)
+            } catch (e: Exception) {}
+            p2pReceiver = null
         }
     }
 
@@ -105,6 +150,9 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
             port = 8888
             if (uuid.isNotEmpty()) {
                 setAttribute("uuid", uuid)
+            }
+            if (myP2pAddress.isNotEmpty()) {
+                setAttribute("p2p", myP2pAddress)
             }
         }
 
@@ -137,10 +185,6 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                 android.util.Log.i("ShareMeDiscovery", "mDNS Service discovery started for regType: $regType")
             }
             override fun onServiceFound(service: NsdServiceInfo) {
-                if (service.serviceName.equals(registeredServiceName, ignoreCase = true)) {
-                    android.util.Log.i("ShareMeDiscovery", "Ignoring self mDNS broadcast: ${service.serviceName}")
-                    return
-                }
                 android.util.Log.i("ShareMeDiscovery", "mDNS Service found: ${service.serviceName} (${service.serviceType})")
                 if (service.serviceType.contains("_shareme")) {
                     nsdManager?.resolveService(service, object : NsdManager.ResolveListener {
@@ -150,18 +194,20 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                             val peerUuid = serviceInfo.attributes["uuid"]?.let { String(it, Charsets.UTF_8) } ?: ""
                             val hostIp = serviceInfo.host?.hostAddress ?: serviceInfo.serviceName
-                            if ((myUuid.isNotEmpty() && peerUuid == myUuid) || isSelfIp(hostIp) || serviceInfo.serviceName.equals(registeredServiceName, ignoreCase = true)) {
+                            if ((myUuid.isNotEmpty() && peerUuid == myUuid) || isSelfIp(hostIp)) {
                                 android.util.Log.i("ShareMeDiscovery", "Ignoring resolved self broadcast (UUID or IP match): ${serviceInfo.serviceName} ($hostIp)")
                                 return
                             }
                             val resolvedRaw = serviceInfo.serviceName.replace("ShareMe_", "").trim()
                             val cleanResolved = resolvedRaw.replace(Regex(" \\(\\d+\\)$"), "").trim()
-                            android.util.Log.i("ShareMeDiscovery", "Resolved mDNS peer: $cleanResolved at IP: $hostIp")
+                            val p2pAddr = serviceInfo.attributes["p2p"]?.let { String(it, Charsets.UTF_8) } ?: ""
+                            android.util.Log.i("ShareMeDiscovery", "Resolved mDNS peer: $cleanResolved at IP: $hostIp (P2P: $p2pAddr)")
                             addOrUpdatePeer(
                                 id = hostIp,
                                 name = cleanResolved,
                                 model = "Android • mDNS LAN ($hostIp)",
-                                rssi = -50
+                                rssi = -50,
+                                p2pAddress = p2pAddr
                             )
                         }
                     })
@@ -193,8 +239,8 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
         }
     }
 
-    private fun addOrUpdatePeer(id: String, name: String, model: String, rssi: Int) {
-        val peerMap = mapOf<String, Any>(
+    private fun addOrUpdatePeer(id: String, name: String, model: String, rssi: Int, p2pAddress: String = "") {
+        val peerMap = mutableMapOf<String, Any>(
             "id" to id,
             "name" to name,
             "deviceModel" to model,
@@ -202,6 +248,9 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
             "supportedBands" to listOf("5GHz", "2.4GHz"),
             "is5GhzSupported" to true
         )
+        if (p2pAddress.isNotEmpty()) {
+            peerMap["p2pAddress"] = p2pAddress
+        }
         discoveredPeers[id] = peerMap
         emitPeers()
     }

@@ -5,8 +5,9 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
-import 'package:crypto/crypto.dart';
+import 'dart:typed_data';
 import 'package:logger/logger.dart';
 import 'package:shareme/core/constants/enums.dart';
 import 'package:shareme/features/transfer/data/performance/buffer_scaling_strategy.dart';
@@ -45,25 +46,18 @@ class TcpTransferServer {
       await for (final socket in _serverSocket!) {
         _logger.i('🐞 [DEBUG MODE] Peer accepted from ${socket.remoteAddress.address}');
         try {
+          socket.setOption(SocketOption.tcpNoDelay, true);
+
           for (final item in items) {
             final file = File(item.filePath);
             if (!await file.exists()) {
               _logger.w('🐞 [DEBUG MODE] File missing or unreadable during transfer: ${item.filePath}');
               continue;
             }
-            Digest digest;
-            try {
-              digest = await sha256.bind(file.openRead()).first;
-            } on Object catch (e) {
-              _logger.w('🐞 [DEBUG MODE] Error reading file for sha256: $e');
-              continue;
-            }
-
             final header = BinaryHeader(
               fileId: item.id,
               fileName: item.fileName,
               fileSizeBytes: item.sizeBytes,
-              sha256Bytes: digest.bytes,
             );
 
             final headerBytes = BinaryPacketCodec.encodeHeader(header);
@@ -75,26 +69,45 @@ class TcpTransferServer {
               cumulativeBytesSent += startOffset;
             }
 
-            // Stream chunks with throttled progress emissions (512KB / 100ms) to prevent UI thread starvation
             var lastEmittedBytes = cumulativeBytesSent;
             var lastEmitTime = DateTime.now();
-            final openStream = file.openRead(startOffset);
-            await for (final chunk in openStream) {
-              socket.add(chunk);
-              cumulativeBytesSent += chunk.length;
-              final now = DateTime.now();
-              if (cumulativeBytesSent - lastEmittedBytes >= 524288 ||
-                  now.difference(lastEmitTime).inMilliseconds >= 100 ||
-                  cumulativeBytesSent >= totalJobBytes) {
-                lastEmittedBytes = cumulativeBytesSent;
-                lastEmitTime = now;
-                _progressController.add((
-                  bytesTransferred: cumulativeBytesSent,
-                  totalBytes: totalJobBytes,
-                  currentFileName: item.name,
-                ));
+            
+            Stream<List<int>> createChunkStream() async* {
+              final raf = await file.open(mode: FileMode.read);
+              try {
+                if (startOffset > 0) {
+                  await raf.setPosition(startOffset);
+                }
+                final chunkBuffer = Uint8List(1024 * 1024); // 1 MB reads
+                while (true) {
+                  final bytesRead = await raf.readInto(chunkBuffer);
+                  if (bytesRead == 0) break;
+                  
+                  final chunk = Uint8List.sublistView(chunkBuffer, 0, bytesRead);
+                  
+                  cumulativeBytesSent += bytesRead;
+                  final now = DateTime.now();
+                  if (cumulativeBytesSent - lastEmittedBytes >= 524288 ||
+                      now.difference(lastEmitTime).inMilliseconds >= 100 ||
+                      cumulativeBytesSent >= totalJobBytes) {
+                    lastEmittedBytes = cumulativeBytesSent;
+                    lastEmitTime = now;
+                    _progressController.add((
+                      bytesTransferred: cumulativeBytesSent,
+                      totalBytes: totalJobBytes,
+                      currentFileName: item.name,
+                    ));
+                  }
+                  
+                  yield chunk;
+                }
+              } finally {
+                await raf.close();
               }
             }
+
+            await socket.addStream(createChunkStream());
+            
           }
           await socket.flush();
           await socket.close();

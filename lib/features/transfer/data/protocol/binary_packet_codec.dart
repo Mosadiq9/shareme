@@ -12,7 +12,6 @@ class BinaryHeader {
     required this.fileId,
     required this.fileName,
     required this.fileSizeBytes,
-    required this.sha256Bytes,
   });
 
   /// Unique UUID string (e.g. 36 chars).
@@ -23,14 +22,10 @@ class BinaryHeader {
 
   /// Total file size in bytes.
   final int fileSizeBytes;
-
-  /// 32-byte raw SHA-256 hash digest.
-  final List<int> sha256Bytes;
 }
 
 class BinaryPacketCodec {
   static const int _uuidByteLength = 36;
-  static const int _sha256ByteLength = 32;
 
   /// Encode a [BinaryHeader] into a packed byte buffer ready to prepend to socket stream.
   static Uint8List encodeHeader(BinaryHeader header) {
@@ -43,13 +38,7 @@ class BinaryPacketCodec {
     // Padded or truncated UUID string to 36 bytes
     final idBytes = utf8.encode(header.fileId.padRight(_uuidByteLength).substring(0, _uuidByteLength));
 
-    // Ensure SHA256 is 32 bytes
-    var hashBytes = header.sha256Bytes;
-    if (hashBytes.length != _sha256ByteLength) {
-      hashBytes = List<int>.filled(_sha256ByteLength, 0);
-    }
-
-    final totalHeaderLen = _uuidByteLength + 2 + nameLen + 8 + _sha256ByteLength;
+    final totalHeaderLen = _uuidByteLength + 2 + nameLen + 8;
     final buffer = Uint8List(totalHeaderLen);
     final byteData = ByteData.view(buffer.buffer);
 
@@ -68,17 +57,13 @@ class BinaryPacketCodec {
 
     // 4. FileSize (8 bytes, Big Endian)
     byteData.setUint64(offset, header.fileSizeBytes);
-    offset += 8;
-
-    // 5. SHA256 (32 bytes)
-    buffer.setRange(offset, offset + _sha256ByteLength, hashBytes);
 
     return buffer;
   }
 
   /// Decode a packed byte buffer back into a [BinaryHeader] and return payload offset.
   static ({BinaryHeader header, int payloadOffset})? decodeHeader(Uint8List buffer) {
-    if (buffer.length < _uuidByteLength + 2 + 8 + _sha256ByteLength) {
+    if (buffer.length < _uuidByteLength + 2 + 8) {
       return null; // Not enough data for minimal header
     }
 
@@ -94,7 +79,7 @@ class BinaryPacketCodec {
     final nameLen = byteData.getUint16(offset);
     offset += 2;
 
-    if (buffer.length < offset + nameLen + 8 + _sha256ByteLength) {
+    if (buffer.length < offset + nameLen + 8) {
       return null; // Buffer does not contain complete header yet
     }
 
@@ -107,15 +92,10 @@ class BinaryPacketCodec {
     final fileSizeBytes = byteData.getUint64(offset);
     offset += 8;
 
-    // 5. SHA256
-    final sha256Bytes = buffer.sublist(offset, offset + _sha256ByteLength);
-    offset += _sha256ByteLength;
-
     final header = BinaryHeader(
       fileId: fileId,
       fileName: fileName,
       fileSizeBytes: fileSizeBytes,
-      sha256Bytes: sha256Bytes,
     );
 
     return (header: header, payloadOffset: offset);

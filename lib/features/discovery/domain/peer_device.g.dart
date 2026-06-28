@@ -16,6 +16,7 @@ _$PeerDeviceImpl _$$PeerDeviceImplFromJson(Map<String, dynamic> json) =>
           .map((e) => e as String)
           .toList(),
       is5GhzSupported: json['is5GhzSupported'] as bool? ?? false,
+      p2pAddress: json['p2pAddress'] as String?,
     );
 
 Map<String, dynamic> _$$PeerDeviceImplToJson(_$PeerDeviceImpl instance) =>
@@ -26,4 +27,5 @@ Map<String, dynamic> _$$PeerDeviceImplToJson(_$PeerDeviceImpl instance) =>
       'signalStrengthRssi': instance.signalStrengthRssi,
       'supportedBands': instance.supportedBands,
       'is5GhzSupported': instance.is5GhzSupported,
+      'p2pAddress': instance.p2pAddress,
     };

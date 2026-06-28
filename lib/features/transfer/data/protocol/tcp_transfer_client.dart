@@ -7,7 +7,6 @@ library;
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:crypto/crypto.dart';
 import 'package:logger/logger.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shareme/core/constants/enums.dart';
@@ -53,6 +52,8 @@ class TcpTransferClient {
         }
       }
       _logger.i('🐞 [DEBUG MODE] Connected to TCP sender at $hostIp:$port (buffer strategy: $bufferSize B)');
+      
+      _socket!.setOption(SocketOption.tcpNoDelay, true);
 
       Directory downloadDir;
       if (Platform.isAndroid) {
@@ -119,75 +120,58 @@ class TcpTransferClient {
               final sink = currentSink!;
 
               final bytesNeeded = header.fileSizeBytes - currentFileBytesReceived;
-              if (buffer.length <= bytesNeeded) {
-                sink.add(buffer);
-                currentFileBytesReceived += buffer.length;
-                cumulativeBytesReceived += buffer.length;
-                final now = DateTime.now();
-                if (cumulativeBytesReceived - lastEmittedBytes >= 524288 ||
-                    now.difference(lastEmitTime).inMilliseconds >= 100 ||
-                    currentFileBytesReceived >= header.fileSizeBytes) {
-                  lastEmittedBytes = cumulativeBytesReceived;
-                  lastEmitTime = now;
-                  _progressController.add((
-                    bytesTransferred: cumulativeBytesReceived,
-                    totalBytes: header.fileSizeBytes,
-                    currentFileName: header.fileName,
-                  ));
-                }
-                buffer = Uint8List(0);
-              } else {
-                final chunk = buffer.sublist(0, bytesNeeded);
-                sink.add(chunk);
-                currentFileBytesReceived += chunk.length;
-                cumulativeBytesReceived += chunk.length;
-                buffer = buffer.sublist(bytesNeeded);
-                final now = DateTime.now();
-                if (cumulativeBytesReceived - lastEmittedBytes >= 524288 ||
-                    now.difference(lastEmitTime).inMilliseconds >= 100 ||
-                    currentFileBytesReceived >= header.fileSizeBytes) {
-                  lastEmittedBytes = cumulativeBytesReceived;
-                  lastEmitTime = now;
-                  _progressController.add((
-                    bytesTransferred: cumulativeBytesReceived,
-                    totalBytes: header.fileSizeBytes,
-                    currentFileName: header.fileName,
-                  ));
-                }
-              }
-
-              if (currentFileBytesReceived >= header.fileSizeBytes) {
-                try {
-                  await sink.flush();
-                  await sink.close();
-                } on Object catch (_) {}
-                currentSink = null;
-
-                // Verify checksum via streaming chunks to prevent 900MB RAM spike & 7s completion lag
-                final calculatedDigest = await sha256.bind(file.openRead()).first;
-                var isCorrupted = false;
-                for (var i = 0; i < 32; i++) {
-                  if (calculatedDigest.bytes[i] != header.sha256Bytes[i]) {
-                    isCorrupted = true;
-                    break;
+              if (bytesNeeded > 0) {
+                if (buffer.length <= bytesNeeded) {
+                  sink.add(buffer);
+                  currentFileBytesReceived += buffer.length;
+                  cumulativeBytesReceived += buffer.length;
+                  final now = DateTime.now();
+                  if (cumulativeBytesReceived - lastEmittedBytes >= 524288 ||
+                      now.difference(lastEmitTime).inMilliseconds >= 100 ||
+                      currentFileBytesReceived >= header.fileSizeBytes) {
+                    lastEmittedBytes = cumulativeBytesReceived;
+                    lastEmitTime = now;
+                    _progressController.add((
+                      bytesTransferred: cumulativeBytesReceived,
+                      totalBytes: header.fileSizeBytes,
+                      currentFileName: header.fileName,
+                    ));
+                  }
+                  buffer = Uint8List(0);
+                  continue; // Wait for more payload bytes
+                } else {
+                  final chunk = buffer.sublist(0, bytesNeeded);
+                  sink.add(chunk);
+                  currentFileBytesReceived += chunk.length;
+                  cumulativeBytesReceived += chunk.length;
+                  buffer = buffer.sublist(bytesNeeded);
+                  final now = DateTime.now();
+                  if (cumulativeBytesReceived - lastEmittedBytes >= 524288 ||
+                      now.difference(lastEmitTime).inMilliseconds >= 100 ||
+                      currentFileBytesReceived >= header.fileSizeBytes) {
+                    lastEmittedBytes = cumulativeBytesReceived;
+                    lastEmitTime = now;
+                    _progressController.add((
+                      bytesTransferred: cumulativeBytesReceived,
+                      totalBytes: header.fileSizeBytes,
+                      currentFileName: header.fileName,
+                    ));
                   }
                 }
-
-                if (isCorrupted) {
-                  _logger.e('🐞 [DEBUG MODE] Checksum mismatch! Quarantining file: ${header.fileName}');
-                  try {
-                    await file.delete();
-                  } on Object catch (_) {}
-                  throw Exception('Checksum verification failed for ${header.fileName}');
-                } else {
-                  _logger.i('🐞 [DEBUG MODE] Verified & saved: ${header.fileName}');
-                  downloadedFiles.add(file);
-                }
-
-                currentHeader = null;
-                currentSink = null;
-                currentFile = null;
               }
+
+              try {
+                await sink.flush();
+                await sink.close();
+              } on Object catch (_) {}
+              currentSink = null;
+
+              _logger.i('🐞 [DEBUG MODE] Saved: ${header.fileName}');
+              downloadedFiles.add(file);
+
+              currentHeader = null;
+              currentSink = null;
+              currentFile = null;
             }
           }
         },

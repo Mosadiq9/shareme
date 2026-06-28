@@ -9,6 +9,9 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
+# Preserve all app-level Kotlin classes
+-keep class com.mosadiq.shareme.** { *; }
+
 # Preserve Drift & SQLite native C library bindings (sqlite3_flutter_libs)
 -keep class org.sqlite.** { *; }
 -keep class com.almworks.sqlite4java.** { *; }

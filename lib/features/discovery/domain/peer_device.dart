@@ -17,6 +17,7 @@ class PeerDevice with _$PeerDevice {
     required int signalStrengthRssi,
     required List<String> supportedBands,
     @Default(false) bool is5GhzSupported,
+    String? p2pAddress,
   }) = _PeerDevice;
 
   factory PeerDevice.fromJson(Map<String, dynamic> json) =>

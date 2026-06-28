@@ -18,7 +18,14 @@ import '../../features/pairing/presentation/providers/pairing_providers.dart';
 import '../../features/transfer/domain/transfer_item.dart';
 import '../../features/transfer/domain/transfer_session.dart';
 import '../../features/transfer/presentation/providers/transfer_providers.dart';
+import '../../features/transfer/data/hotspot/hotspot_data_source.dart';
+import '../../features/transfer/domain/hotspot_state.dart';
 import '../data/local/local_storage_providers.dart';
+
+// Hotspot Data Source Provider
+final hotspotDataSourceProvider = Provider<HotspotDataSource>((ref) {
+  return HotspotDataSource();
+});
 
 // ==========================================
 // 1. Permissions State Provider
@@ -330,8 +337,24 @@ class TransferNotifier extends Notifier<TransferSession?> {
     }
 
     if (state != null && state!.status == TransferSessionStatus.connecting) {
-      debugPrint('🐞 [DEBUG MODE] Session confirmed in connecting state. Launching TCP transfer server.');
-      await _beginTransfer();
+      debugPrint('🐞 [DEBUG MODE] Session confirmed in connecting state. Creating Hotspot...');
+      final hotspotDs = ref.read(hotspotDataSourceProvider);
+      
+      // We don't await this completely because it may take seconds and we can proceed based on stream
+      unawaited(hotspotDs.createHotspot());
+
+      // Wait for it to be ready (which means the AP is up)
+      await for (final hotspotState in hotspotDs.watchHotspotState()) {
+        if (hotspotState.status == HotspotStatus.creating || hotspotState.status == HotspotStatus.connected) {
+          debugPrint('🐞 [DEBUG MODE] Hotspot created. Launching TCP transfer server on port 0...');
+          await _beginTransfer();
+          break;
+        } else if (hotspotState.status == HotspotStatus.failed) {
+          debugPrint('🐞 [DEBUG MODE] Hotspot creation failed. Aborting transfer.');
+          state = state!.copyWith(status: TransferSessionStatus.failed, errorMessage: hotspotState.errorMessage);
+          break;
+        }
+      }
     }
   }
 
@@ -354,7 +377,26 @@ class TransferNotifier extends Notifier<TransferSession?> {
 
     _listenToRealProgress();
 
-    final hostIp = peer.id.contains('.') ? peer.id : '192.168.49.1';
+    final hotspotDs = ref.read(hotspotDataSourceProvider);
+    var hostIp = peer.id.contains('.') ? peer.id : '192.168.49.1';
+
+    if (peer.p2pAddress != null && peer.p2pAddress!.isNotEmpty) {
+      debugPrint('🐞 [DEBUG MODE] Connecting to Hotspot via P2P Address: ${peer.p2pAddress}');
+      unawaited(hotspotDs.connectToHotspot(peer.p2pAddress!));
+      
+      await for (final hotspotState in hotspotDs.watchHotspotState()) {
+        if (hotspotState.status == HotspotStatus.connected) {
+          hostIp = hotspotState.groupOwnerIp ?? '192.168.49.1';
+          debugPrint('🐞 [DEBUG MODE] Hotspot connected. GO IP is: $hostIp');
+          break;
+        } else if (hotspotState.status == HotspotStatus.failed) {
+          debugPrint('🐞 [DEBUG MODE] Hotspot connection failed. Aborting transfer.');
+          state = state!.copyWith(status: TransferSessionStatus.failed, errorMessage: hotspotState.errorMessage);
+          return;
+        }
+      }
+    }
+
     debugPrint('🐞 [DEBUG MODE] Connecting TCP receiver socket to host IP: $hostIp on port 8888...');
     try {
       unawaited(ref.read(transferRepositoryProvider).receiveFiles(
@@ -362,6 +404,7 @@ class TransferNotifier extends Notifier<TransferSession?> {
             port: 8888,
             totalExpectedBytes: totalExpectedBytes,
           ).then((result) {
+            hotspotDs.destroyHotspot(); // Clean up hotspot connection
             result.fold(
               (failure) => debugPrint('🐞 [DEBUG MODE] receiveFiles failed: ${failure.message}'),
               (files) {
@@ -440,6 +483,12 @@ class TransferNotifier extends Notifier<TransferSession?> {
       if (newTransferred >= currentTotalBytes && currentTotalBytes > 0) {
         debugPrint('🐞 [DEBUG MODE] Transfer reached 100% completion ($newTransferred / $currentTotalBytes bytes). Logging success!');
         _progressSub?.cancel();
+        
+        // Clean up hotspot if we are the sender
+        if (state!.isSent) {
+          ref.read(hotspotDataSourceProvider).destroyHotspot();
+        }
+        
         state = state!.copyWith(
           status: TransferSessionStatus.completed,
           transferredBytes: currentTotalBytes,

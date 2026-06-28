@@ -27,6 +27,7 @@ mixin _$PeerDevice {
   int get signalStrengthRssi => throw _privateConstructorUsedError;
   List<String> get supportedBands => throw _privateConstructorUsedError;
   bool get is5GhzSupported => throw _privateConstructorUsedError;
+  String? get p2pAddress => throw _privateConstructorUsedError;
 
   /// Serializes this PeerDevice to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -52,6 +53,7 @@ abstract class $PeerDeviceCopyWith<$Res> {
     int signalStrengthRssi,
     List<String> supportedBands,
     bool is5GhzSupported,
+    String? p2pAddress,
   });
 }
 
@@ -76,6 +78,7 @@ class _$PeerDeviceCopyWithImpl<$Res, $Val extends PeerDevice>
     Object? signalStrengthRssi = null,
     Object? supportedBands = null,
     Object? is5GhzSupported = null,
+    Object? p2pAddress = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -103,6 +106,10 @@ class _$PeerDeviceCopyWithImpl<$Res, $Val extends PeerDevice>
                 ? _value.is5GhzSupported
                 : is5GhzSupported // ignore: cast_nullable_to_non_nullable
                       as bool,
+            p2pAddress: freezed == p2pAddress
+                ? _value.p2pAddress
+                : p2pAddress // ignore: cast_nullable_to_non_nullable
+                      as String?,
           )
           as $Val,
     );
@@ -125,6 +132,7 @@ abstract class _$$PeerDeviceImplCopyWith<$Res>
     int signalStrengthRssi,
     List<String> supportedBands,
     bool is5GhzSupported,
+    String? p2pAddress,
   });
 }
 
@@ -148,6 +156,7 @@ class __$$PeerDeviceImplCopyWithImpl<$Res>
     Object? signalStrengthRssi = null,
     Object? supportedBands = null,
     Object? is5GhzSupported = null,
+    Object? p2pAddress = freezed,
   }) {
     return _then(
       _$PeerDeviceImpl(
@@ -175,6 +184,10 @@ class __$$PeerDeviceImplCopyWithImpl<$Res>
             ? _value.is5GhzSupported
             : is5GhzSupported // ignore: cast_nullable_to_non_nullable
                   as bool,
+        p2pAddress: freezed == p2pAddress
+            ? _value.p2pAddress
+            : p2pAddress // ignore: cast_nullable_to_non_nullable
+                  as String?,
       ),
     );
   }
@@ -190,6 +203,7 @@ class _$PeerDeviceImpl implements _PeerDevice {
     required this.signalStrengthRssi,
     required final List<String> supportedBands,
     this.is5GhzSupported = false,
+    this.p2pAddress,
   }) : _supportedBands = supportedBands;
 
   factory _$PeerDeviceImpl.fromJson(Map<String, dynamic> json) =>
@@ -214,10 +228,12 @@ class _$PeerDeviceImpl implements _PeerDevice {
   @override
   @JsonKey()
   final bool is5GhzSupported;
+  @override
+  final String? p2pAddress;
 
   @override
   String toString() {
-    return 'PeerDevice(id: $id, name: $name, deviceModel: $deviceModel, signalStrengthRssi: $signalStrengthRssi, supportedBands: $supportedBands, is5GhzSupported: $is5GhzSupported)';
+    return 'PeerDevice(id: $id, name: $name, deviceModel: $deviceModel, signalStrengthRssi: $signalStrengthRssi, supportedBands: $supportedBands, is5GhzSupported: $is5GhzSupported, p2pAddress: $p2pAddress)';
   }
 
   @override
@@ -236,7 +252,9 @@ class _$PeerDeviceImpl implements _PeerDevice {
               _supportedBands,
             ) &&
             (identical(other.is5GhzSupported, is5GhzSupported) ||
-                other.is5GhzSupported == is5GhzSupported));
+                other.is5GhzSupported == is5GhzSupported) &&
+            (identical(other.p2pAddress, p2pAddress) ||
+                other.p2pAddress == p2pAddress));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -249,6 +267,7 @@ class _$PeerDeviceImpl implements _PeerDevice {
     signalStrengthRssi,
     const DeepCollectionEquality().hash(_supportedBands),
     is5GhzSupported,
+    p2pAddress,
   );
 
   /// Create a copy of PeerDevice
@@ -273,6 +292,7 @@ abstract class _PeerDevice implements PeerDevice {
     required final int signalStrengthRssi,
     required final List<String> supportedBands,
     final bool is5GhzSupported,
+    final String? p2pAddress,
   }) = _$PeerDeviceImpl;
 
   factory _PeerDevice.fromJson(Map<String, dynamic> json) =
@@ -290,6 +310,8 @@ abstract class _PeerDevice implements PeerDevice {
   List<String> get supportedBands;
   @override
   bool get is5GhzSupported;
+  @override
+  String? get p2pAddress;
 
   /// Create a copy of PeerDevice
   /// with the given fields replaced by the non-null parameter values.
