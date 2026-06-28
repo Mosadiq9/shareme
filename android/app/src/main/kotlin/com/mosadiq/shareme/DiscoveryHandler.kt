@@ -24,6 +24,7 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
     private var discoveryListener: NsdManager.DiscoveryListener? = null
     private var myDeviceName: String = ""
     private var registeredServiceName: String = ""
+    private var myUuid: String = ""
 
     private fun isSelfIp(ip: String): Boolean {
         try {
@@ -56,14 +57,15 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
     }
 
     @SuppressLint("MissingPermission")
-    fun startDiscovery(deviceName: String) {
+    fun startDiscovery(deviceName: String, uuid: String = "") {
         myDeviceName = deviceName.trim()
-        android.util.Log.i("ShareMeDiscovery", "Starting Total Debug Mode Discovery for device: $deviceName")
+        myUuid = uuid.trim()
+        android.util.Log.i("ShareMeDiscovery", "Starting Total Debug Mode Discovery for device: $deviceName (UUID: $uuid)")
         discoveredPeers.clear()
 
         // 1. Start mDNS Service Registration & Discovery
         nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
-        registerMdnsService(deviceName)
+        registerMdnsService(deviceName, uuid)
         discoverMdnsServices()
 
         // 2. Start Wi-Fi Direct Peer Discovery
@@ -96,11 +98,14 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
         }
     }
 
-    private fun registerMdnsService(deviceName: String) {
+    private fun registerMdnsService(deviceName: String, uuid: String) {
         val serviceInfo = NsdServiceInfo().apply {
             serviceName = "ShareMe_$deviceName"
             serviceType = SERVICE_TYPE
             port = 8888
+            if (uuid.isNotEmpty()) {
+                setAttribute("uuid", uuid)
+            }
         }
 
         registrationListener = object : NsdManager.RegistrationListener {
@@ -132,10 +137,7 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                 android.util.Log.i("ShareMeDiscovery", "mDNS Service discovery started for regType: $regType")
             }
             override fun onServiceFound(service: NsdServiceInfo) {
-                val rawName = service.serviceName.replace("ShareMe_", "").trim()
-                val cleanPeerName = rawName.replace(Regex(" \\(\\d+\\)$"), "").trim()
-                val cleanMyName = myDeviceName.replace(Regex(" \\(\\d+\\)$"), "").trim()
-                if (cleanPeerName.equals(cleanMyName, ignoreCase = true) || service.serviceName.equals(registeredServiceName, ignoreCase = true) || service.serviceName.equals("ShareMe_$myDeviceName", ignoreCase = true)) {
+                if (service.serviceName.equals(registeredServiceName, ignoreCase = true)) {
                     android.util.Log.i("ShareMeDiscovery", "Ignoring self mDNS broadcast: ${service.serviceName}")
                     return
                 }
@@ -146,14 +148,14 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                             android.util.Log.e("ShareMeDiscovery", "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
                         }
                         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                            val resolvedRaw = serviceInfo.serviceName.replace("ShareMe_", "").trim()
-                            val cleanResolved = resolvedRaw.replace(Regex(" \\(\\d+\\)$"), "").trim()
-                            val cleanMy = myDeviceName.replace(Regex(" \\(\\d+\\)$"), "").trim()
+                            val peerUuid = serviceInfo.attributes["uuid"]?.let { String(it, Charsets.UTF_8) } ?: ""
                             val hostIp = serviceInfo.host?.hostAddress ?: serviceInfo.serviceName
-                            if (cleanResolved.equals(cleanMy, ignoreCase = true) || isSelfIp(hostIp)) {
-                                android.util.Log.i("ShareMeDiscovery", "Ignoring resolved self IP or name: $cleanResolved ($hostIp)")
+                            if ((myUuid.isNotEmpty() && peerUuid == myUuid) || isSelfIp(hostIp) || serviceInfo.serviceName.equals(registeredServiceName, ignoreCase = true)) {
+                                android.util.Log.i("ShareMeDiscovery", "Ignoring resolved self broadcast (UUID or IP match): ${serviceInfo.serviceName} ($hostIp)")
                                 return
                             }
+                            val resolvedRaw = serviceInfo.serviceName.replace("ShareMe_", "").trim()
+                            val cleanResolved = resolvedRaw.replace(Regex(" \\(\\d+\\)$"), "").trim()
                             android.util.Log.i("ShareMeDiscovery", "Resolved mDNS peer: $cleanResolved at IP: $hostIp")
                             addOrUpdatePeer(
                                 id = hostIp,

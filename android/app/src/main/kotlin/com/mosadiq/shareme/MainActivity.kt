@@ -23,7 +23,8 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "startDiscovery" -> {
                     val deviceName = call.argument<String>("deviceName") ?: "Android Device"
-                    discoveryHandler?.startDiscovery(deviceName)
+                    val uuid = call.argument<String>("uuid") ?: ""
+                    discoveryHandler?.startDiscovery(deviceName, uuid)
                     result.success(null)
                 }
                 "stopDiscovery" -> {

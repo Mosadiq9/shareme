@@ -12,8 +12,11 @@ abstract interface class DiscoveryRepository {
   /// Stream of discovered peers nearby.
   Stream<Either<Failure, List<PeerDevice>>> watchNearbyPeers();
 
-  /// Start scanning for peers, advertising our [deviceName].
-  Future<Either<Failure, void>> startDiscovery({required String deviceName});
+  /// Start scanning for peers, advertising our [deviceName] and [uuid].
+  Future<Either<Failure, void>> startDiscovery({
+    required String deviceName,
+    required String uuid,
+  });
 
   /// Stop peer scanning.
   Future<Either<Failure, void>> stopDiscovery();

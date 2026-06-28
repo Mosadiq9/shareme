@@ -244,9 +244,26 @@ class DiscoveryNotifier extends Notifier<DiscoveryState> {
   Future<void> startScanning() async {
     state = const DiscoveryState(isScanning: true, peers: []);
 
-    final deviceName = ref.read(localDeviceNameProvider);
+    // Gate until real device name is loaded from SQLite settings DB
+    var deviceName = ref.read(localDeviceNameProvider);
+    if (deviceName == 'ShareMe Mobile') {
+      try {
+        final asyncName = await ref.read(deviceDisplayNameProvider.future);
+        if (asyncName.isNotEmpty) deviceName = asyncName;
+      } on Object catch (_) {}
+    }
+
+    // Get persistent install UUID
+    var uuid = '';
     try {
-      await ref.read(discoveryRepositoryProvider).startDiscovery(deviceName: deviceName);
+      uuid = await ref.read(installUuidProvider.future);
+    } on Object catch (_) {}
+
+    try {
+      await ref.read(discoveryRepositoryProvider).startDiscovery(
+        deviceName: deviceName,
+        uuid: uuid,
+      );
     } on Object catch (_) {}
   }
 

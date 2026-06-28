@@ -44,3 +44,9 @@ final deviceDisplayNameProvider = StreamProvider<String>((ref) {
   final repository = ref.watch(settingsRepositoryProvider);
   return repository.watchDeviceName();
 });
+
+/// Future provider for the persistent install UUID.
+final installUuidProvider = FutureProvider<String>((ref) {
+  final repository = ref.watch(settingsRepositoryProvider);
+  return repository.getOrCreateInstallUuid();
+});

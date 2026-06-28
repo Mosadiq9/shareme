@@ -19,11 +19,15 @@ class NativeDiscoveryDataSource {
       EventChannel('com.mosadiq.shareme/discovery_events');
 
   /// Start scanning for nearby peers via native Wi-Fi Direct and mDNS.
-  Future<void> startDiscovery({required String deviceName}) async {
+  Future<void> startDiscovery({
+    required String deviceName,
+    required String uuid,
+  }) async {
     try {
-      _logger.i('Starting native discovery bridge for: $deviceName');
+      _logger.i('Starting native discovery bridge for: $deviceName (UUID: $uuid)');
       await _methodChannel.invokeMethod<void>('startDiscovery', {
         'deviceName': deviceName,
+        'uuid': uuid,
       });
     } on PlatformException catch (e, st) {
       _logger.e('Failed to start discovery method channel: $e', error: e, stackTrace: st);

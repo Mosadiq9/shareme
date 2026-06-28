@@ -33,9 +33,12 @@ class LocalDiscoveryRepository implements DiscoveryRepository {
   }
 
   @override
-  Future<Either<Failure, void>> startDiscovery({required String deviceName}) async {
+  Future<Either<Failure, void>> startDiscovery({
+    required String deviceName,
+    required String uuid,
+  }) async {
     try {
-      await _dataSource.startDiscovery(deviceName: deviceName);
+      await _dataSource.startDiscovery(deviceName: deviceName, uuid: uuid);
       return const Right(null);
     } on Object catch (e, st) {
       return Left(DiscoveryFailure(message: 'Could not start discovery: $e', stackTrace: st));
