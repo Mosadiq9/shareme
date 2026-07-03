@@ -23,6 +23,9 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
     private var channel: WifiP2pManager.Channel? = null
 
     private val discoveredPeers = mutableMapOf<String, Map<String, Any>>()
+    private val pendingResolves = java.util.concurrent.ConcurrentLinkedQueue<NsdServiceInfo>()
+    private var isResolving = false
+
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
     private var p2pReceiver: BroadcastReceiver? = null
@@ -187,30 +190,8 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
             override fun onServiceFound(service: NsdServiceInfo) {
                 android.util.Log.i("ShareMeDiscovery", "mDNS Service found: ${service.serviceName} (${service.serviceType})")
                 if (service.serviceType.contains("_shareme")) {
-                    nsdManager?.resolveService(service, object : NsdManager.ResolveListener {
-                        override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
-                            android.util.Log.e("ShareMeDiscovery", "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
-                        }
-                        override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-                            val peerUuid = serviceInfo.attributes["uuid"]?.let { String(it, Charsets.UTF_8) } ?: ""
-                            val hostIp = serviceInfo.host?.hostAddress ?: serviceInfo.serviceName
-                            if ((myUuid.isNotEmpty() && peerUuid == myUuid) || isSelfIp(hostIp)) {
-                                android.util.Log.i("ShareMeDiscovery", "Ignoring resolved self broadcast (UUID or IP match): ${serviceInfo.serviceName} ($hostIp)")
-                                return
-                            }
-                            val resolvedRaw = serviceInfo.serviceName.replace("ShareMe_", "").trim()
-                            val cleanResolved = resolvedRaw.replace(Regex(" \\(\\d+\\)$"), "").trim()
-                            val p2pAddr = serviceInfo.attributes["p2p"]?.let { String(it, Charsets.UTF_8) } ?: ""
-                            android.util.Log.i("ShareMeDiscovery", "Resolved mDNS peer: $cleanResolved at IP: $hostIp (P2P: $p2pAddr)")
-                            addOrUpdatePeer(
-                                id = hostIp,
-                                name = cleanResolved,
-                                model = "Android • mDNS LAN ($hostIp)",
-                                rssi = -50,
-                                p2pAddress = p2pAddr
-                            )
-                        }
-                    })
+                    pendingResolves.add(service)
+                    processNextResolve()
                 }
             }
             override fun onServiceLost(service: NsdServiceInfo) {
@@ -236,6 +217,47 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
             nsdManager?.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discoveryListener)
         } catch (e: Exception) {
             android.util.Log.e("ShareMeDiscovery", "Exception starting mDNS discovery: ${e.message}")
+        }
+    }
+
+    private fun processNextResolve() {
+        if (isResolving) return
+        val service = pendingResolves.poll() ?: return
+        isResolving = true
+
+        try {
+            nsdManager?.resolveService(service, object : NsdManager.ResolveListener {
+                override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
+                    android.util.Log.e("ShareMeDiscovery", "Resolve failed for ${serviceInfo.serviceName}: $errorCode")
+                    isResolving = false
+                    processNextResolve()
+                }
+                override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
+                    val peerUuid = serviceInfo.attributes["uuid"]?.let { String(it, Charsets.UTF_8) } ?: ""
+                    val hostIp = serviceInfo.host?.hostAddress ?: serviceInfo.serviceName
+                    if ((myUuid.isNotEmpty() && peerUuid == myUuid) || isSelfIp(hostIp)) {
+                        android.util.Log.i("ShareMeDiscovery", "Ignoring resolved self broadcast: ${serviceInfo.serviceName}")
+                    } else {
+                        val resolvedRaw = serviceInfo.serviceName.replace("ShareMe_", "").trim()
+                        val cleanResolved = resolvedRaw.replace(Regex(" \\(\\d+\\)$"), "").trim()
+                        val p2pAddr = serviceInfo.attributes["p2p"]?.let { String(it, Charsets.UTF_8) } ?: ""
+                        android.util.Log.i("ShareMeDiscovery", "Resolved mDNS peer: $cleanResolved at IP: $hostIp (P2P: $p2pAddr)")
+                        addOrUpdatePeer(
+                            id = hostIp,
+                            name = cleanResolved,
+                            model = "Android • mDNS LAN ($hostIp)",
+                            rssi = -50,
+                            p2pAddress = p2pAddr
+                        )
+                    }
+                    isResolving = false
+                    processNextResolve()
+                }
+            })
+        } catch (e: Exception) {
+            android.util.Log.e("ShareMeDiscovery", "Resolve exception: ${e.message}")
+            isResolving = false
+            processNextResolve()
         }
     }
 
