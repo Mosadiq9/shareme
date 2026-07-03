@@ -52,13 +52,13 @@ class HotspotManager(private val context: Context) {
                     val config = WifiP2pConfig.Builder()
                         .setGroupOperatingBand(WifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
                         .build()
-                    wifiP2pManager?.createGroup(channel, config, listener)
+                    channel?.let { c -> wifiP2pManager?.createGroup(c, config, listener) }
                 } catch (e: Exception) {
                     Log.w(TAG, "5GHz Group creation failed, falling back to default", e)
-                    wifiP2pManager?.createGroup(channel, listener)
+                    channel?.let { c -> wifiP2pManager?.createGroup(c, listener) }
                 }
             } else {
-                wifiP2pManager?.createGroup(channel, listener)
+                channel?.let { c -> wifiP2pManager?.createGroup(c, listener) }
             }
         }
     }
