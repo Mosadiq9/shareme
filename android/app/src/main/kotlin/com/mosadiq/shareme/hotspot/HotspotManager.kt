@@ -35,7 +35,7 @@ class HotspotManager(private val context: Context) {
         // Remove existing group if any before creating a new one
         removeGroup {
             registerReceiver()
-            wifiP2pManager?.createGroup(channel, object : WifiP2pManager.ActionListener {
+            val listener = object : WifiP2pManager.ActionListener {
                 override fun onSuccess() {
                     Log.i(TAG, "createGroup initiated successfully")
                     onStateChanged?.invoke("creating", null)
@@ -45,7 +45,21 @@ class HotspotManager(private val context: Context) {
                     Log.e(TAG, "createGroup failed: $reason")
                     onStateChanged?.invoke("failed", "Failed to create group: $reason")
                 }
-            })
+            }
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                try {
+                    val config = WifiP2pConfig.Builder()
+                        .setGroupOperatingBand(WifiP2pConfig.GROUP_OWNER_BAND_5GHZ)
+                        .build()
+                    wifiP2pManager?.createGroup(channel, config, listener)
+                } catch (e: Exception) {
+                    Log.w(TAG, "5GHz Group creation failed, falling back to default", e)
+                    wifiP2pManager?.createGroup(channel, listener)
+                }
+            } else {
+                wifiP2pManager?.createGroup(channel, listener)
+            }
         }
     }
 
