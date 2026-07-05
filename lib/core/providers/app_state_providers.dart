@@ -392,6 +392,10 @@ class TransferNotifier extends Notifier<TransferSession?> {
           return;
         }
       }
+    } else {
+      debugPrint('🐞 [DEBUG MODE] P2P Address is missing from peer. Aborting transfer.');
+      state = state!.copyWith(status: TransferSessionStatus.failed, errorMessage: 'Cannot connect to peer: Wi-Fi Direct address not found. Please rescan.');
+      return;
     }
 
     debugPrint('🐞 [DEBUG MODE] Connecting TCP receiver socket to host IP: $hostIp on port 8888...');

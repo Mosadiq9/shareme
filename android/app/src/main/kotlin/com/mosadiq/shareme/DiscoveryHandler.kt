@@ -158,12 +158,13 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                                     "id" to address,
                                     "name" to name,
                                     "supportedBands" to listOf("2.4GHz", "5GHz"),
-                                    "is5GhzSupported" to is5Ghz
+                                    "is5GhzSupported" to is5Ghz,
+                                    "p2pAddress" to address
                                 )
                                 
                                 discoveredPeers[address] = deviceMap
-                                eventSink?.success(deviceMap)
                             }
+                            eventSink?.success(discoveredPeers.values.toList())
                         }
                     }
                 }
