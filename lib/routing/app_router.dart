@@ -12,6 +12,7 @@ import '../features/home/presentation/screens/home_screen.dart';
 import '../features/pairing/presentation/screens/connecting_screen.dart';
 import '../features/permissions/presentation/screens/permission_screen.dart';
 import '../features/settings/presentation/screens/settings_screen.dart';
+import '../features/settings/presentation/screens/debug_logs_screen.dart';
 import '../features/splash/presentation/screens/splash_screen.dart';
 import '../features/transfer/presentation/screens/transfer_complete_screen.dart';
 import '../features/transfer/presentation/screens/transfer_failed_screen.dart';
@@ -74,6 +75,11 @@ final GoRouter appRouter = GoRouter(
       path: RoutePaths.settings,
       name: RouteNames.settings,
       builder: (context, state) => const SettingsScreen(),
+    ),
+    GoRoute(
+      path: RoutePaths.debugLogs,
+      name: RouteNames.debugLogs,
+      builder: (context, state) => const DebugLogsScreen(),
     ),
   ],
 );

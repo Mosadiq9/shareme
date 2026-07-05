@@ -10,6 +10,7 @@ import 'package:shareme/core/theme/app_colors.dart';
 import 'package:shareme/core/theme/app_spacing.dart';
 import 'package:shareme/core/theme/app_typography.dart';
 import 'package:shareme/core/widgets/app_toast.dart';
+import 'package:go_router/go_router.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -141,6 +142,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Text('ShareMe v1.0.0-phase1', style: AppTypography.labelMedium),
                   const SizedBox(height: 4),
                   Text('Built with highest engineering quality.', style: AppTypography.labelSmall),
+                  const SizedBox(height: AppSpacing.lg),
+                  TextButton.icon(
+                    onPressed: () {
+                      context.pushNamed('debugLogs');
+                    },
+                    icon: const Icon(Icons.bug_report_rounded, color: AppColors.accentSignal),
+                    label: Text(
+                      'Open Developer Logs',
+                      style: AppTypography.labelSmall.copyWith(color: AppColors.textPrimary),
+                    ),
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.surfaceRaised,
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.sm),
+                    ),
+                  ),
                 ],
               ),
             ),

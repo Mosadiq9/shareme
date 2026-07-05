@@ -15,6 +15,7 @@ abstract final class RouteNames {
   static const String transferComplete = 'transferComplete';
   static const String transferFailed = 'transferFailed';
   static const String settings = 'settings';
+  static const String debugLogs = 'debugLogs';
 }
 
 /// Route path constants.
@@ -29,4 +30,5 @@ abstract final class RoutePaths {
   static const String transferComplete = '/transfer-complete';
   static const String transferFailed = '/transfer-failed';
   static const String settings = '/settings';
+  static const String debugLogs = '/debug-logs';
 }
