@@ -21,6 +21,8 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
     private var nsdManager: NsdManager? = null
     private var wifiP2pManager: WifiP2pManager? = null
     private var channel: WifiP2pManager.Channel? = null
+    private var wifiManager: android.net.wifi.WifiManager? = null
+    private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
     private val discoveredPeers = mutableMapOf<String, Map<String, Any>>()
     private val pendingResolves = java.util.concurrent.ConcurrentLinkedQueue<NsdServiceInfo>()
@@ -71,6 +73,16 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
         android.util.Log.i("ShareMeDiscovery", "Starting Total Debug Mode Discovery for device: $deviceName (UUID: $uuid)")
         discoveredPeers.clear()
 
+        // Acquire Multicast Lock to allow mDNS packets in Release builds
+        if (wifiManager == null) {
+            wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? android.net.wifi.WifiManager
+        }
+        if (multicastLock == null) {
+            multicastLock = wifiManager?.createMulticastLock("ShareMeMulticastLock")
+            multicastLock?.setReferenceCounted(true)
+        }
+        multicastLock?.acquire()
+
         // 1. Start mDNS Service Registration & Discovery
         nsdManager = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
         registerMdnsService(deviceName, uuid)
@@ -105,6 +117,10 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
             }
             wifiP2pManager?.stopPeerDiscovery(channel, null)
             unregisterP2pReceiver()
+            
+            if (multicastLock?.isHeld == true) {
+                multicastLock?.release()
+            }
         } catch (e: Exception) {
             android.util.Log.e("ShareMeDiscovery", "Error stopping discovery: ${e.message}")
         }
@@ -128,6 +144,25 @@ class DiscoveryHandler(private val context: Context) : EventChannel.StreamHandle
                             if (registeredServiceName.isNotEmpty()) {
                                 nsdManager?.unregisterService(registrationListener)
                                 registerMdnsService(myDeviceName, myUuid)
+                            }
+                        }
+                    }
+                    WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
+                        wifiP2pManager?.requestPeers(channel) { peers ->
+                            for (device in peers.deviceList) {
+                                val name = device.deviceName ?: "Unknown Device"
+                                val address = device.deviceAddress ?: continue
+                                val is5Ghz = true // Defaulting true for high-speed assumption
+                                
+                                val deviceMap = mapOf(
+                                    "id" to address,
+                                    "name" to name,
+                                    "supportedBands" to listOf("2.4GHz", "5GHz"),
+                                    "is5GhzSupported" to is5Ghz
+                                )
+                                
+                                discoveredPeers[address] = deviceMap
+                                eventSink?.success(deviceMap)
                             }
                         }
                     }
